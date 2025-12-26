@@ -110,7 +110,45 @@ ability, _ := gocasl.LoadFromJSON([]byte(jsonRules), opts)
 - `$exists`
 - `$size` (array/string)
 
-## Performance
+### Custom Operators
+
+You can extend the library with your own operators.
+
+```go
+// 1. Define the operator function
+func opBetween(fieldValue, operand any) bool {
+    // ... implementation ...
+    return val >= min && val <= max
+}
+
+// 2. Register it when creating the Ability
+ops := gocasl.DefaultOperators.With("$between", opBetween)
+builder := gocasl.NewAbility().WithOperators(ops)
+
+// 3. Use it in rules
+gocasl.AddRule(builder, gocasl.Allow(read).Where(gocasl.Cond{
+    "Price": gocasl.Op{"$between": []any{10, 100}},
+}).Build())
+```
+
+See [examples/custom_operator](examples/custom_operator/main.go) for a full working example.
+
+## Introspection
+
+You can inspect the rules to debug or build UI based on permissions.
+
+```go
+// Get reason for denial
+reason := gocasl.WhyNot(ability, update, post)
+
+// Get all fields allowed for an action
+fields := gocasl.AllowedFields(ability, update, post)
+
+// Get all rules registered for a subject type (ignoring fields/conditions)
+// Useful for debugging or pre-filtering
+rules := gocasl.PossibleRulesFor(ability, read) 
+```
+
 
 Go CASL is designed for speed.
 
