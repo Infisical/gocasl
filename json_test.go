@@ -92,7 +92,7 @@ func TestLoadFromJSON(t *testing.T) {
 
 	sub2 := postSubject{ID: 2}
 	deletePost := DefineAction[postSubject]("delete")
-	if Can(a, deletePost, sub2) {
+	if !Can(a, deletePost, sub2) {
 		t.Errorf("Rule 3 failed: should be able to delete all Post except ID 1")
 	}
 

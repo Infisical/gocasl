@@ -56,6 +56,7 @@ type RuleInfo struct {
 }
 
 // RulesFor returns all rules that apply to the subject/action, indicating which ones matched.
+// This function evaluates conditions against the provided subject instance.
 func RulesFor[S Subject](a *Ability, action ActionFor[S], subject S) []RuleInfo {
 	rules := a.index.get(subject.SubjectType(), action.Name())
 	var infos []RuleInfo
@@ -73,6 +74,28 @@ func RulesFor[S Subject](a *Ability, action ActionFor[S], subject S) []RuleInfo 
 		})
 	}
 
+	return infos
+}
+
+// PossibleRulesFor returns all registered rules for the provided action and subject type.
+// It ignores field restrictions and does not evaluate conditions (Matched will always be false).
+// This is useful for debugging to see which rules *might* apply to this subject type.
+func PossibleRulesFor[S Subject](a *Ability, action ActionFor[S]) []RuleInfo {
+	var s S // Get zero value of S to access SubjectType()
+	rules := a.index.get(s.SubjectType(), action.Name())
+	var infos []RuleInfo
+
+	for _, rule := range rules {
+		infos = append(infos, RuleInfo{
+			Action:      rule.rule.Action,
+			SubjectType: rule.rule.SubjectType,
+			Inverted:    rule.rule.Inverted,
+			Conditions:  rule.rule.Conditions,
+			Fields:      rule.rule.Fields,
+			Reason:      rule.rule.Reason,
+			Matched:     false, // Conditions are not evaluated against an instance
+		})
+	}
 	return infos
 }
 

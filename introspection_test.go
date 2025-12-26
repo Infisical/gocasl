@@ -4,6 +4,23 @@ import (
 	"testing"
 )
 
+type anotherMockSubject struct {
+	ID int
+}
+
+func (anotherMockSubject) SubjectType() string {
+	return "anotherMockSubject"
+}
+
+func (s anotherMockSubject) GetField(field string) any {
+	switch field {
+	case "ID":
+		return s.ID
+	default:
+		return nil
+	}
+}
+
 func TestIntrospection(t *testing.T) {
 	read := DefineAction[mockSubject]("read")
 	sub := mockSubject{ID: 1}
@@ -108,6 +125,60 @@ func TestIntrospection(t *testing.T) {
 		a = b.Build()
 		if ForbiddenFields(a, read, sub) != nil {
 			t.Errorf("Expected nil for wildcard forbidden")
+		}
+	})
+
+	t.Run("PossibleRulesFor", func(t *testing.T) {
+		update := DefineAction[mockSubject]("update")
+		create := DefineAction[anotherMockSubject]("create") // Different subject type
+
+		b := NewAbility()
+		AddRule(b, Allow(read).Where(Cond{"ID": 1}).Build()) // Rule 1 for mockSubject, read
+		AddRule(b, Allow(read).OnFields("Title").Build())    // Rule 2 for mockSubject, read
+		AddRule(b, Forbid(update).Because("No update").Build()) // Rule 3 for mockSubject, update
+		AddRule(b, Allow(create).Build())                    // Rule 4 for anotherMockSubject, create
+		a := b.Build()
+
+		// Test for mockSubject, read action
+		rules := PossibleRulesFor(a, read)
+		if len(rules) != 2 {
+			t.Errorf("PossibleRulesFor for read (mockSubject) expected 2 rules, got %d", len(rules))
+		}
+		for _, r := range rules {
+			if r.Action != "read" {
+				t.Errorf("Expected action 'read', got '%s'", r.Action)
+			}
+			if r.SubjectType != "MockSubject" {
+				t.Errorf("Expected subjectType 'mockSubject', got '%s'", r.SubjectType)
+			}
+			if r.Matched {
+				t.Errorf("Expected Matched to be false, got true")
+			}
+		}
+
+		// Test for mockSubject, update action
+		updateRules := PossibleRulesFor(a, update)
+		if len(updateRules) != 1 {
+			t.Errorf("PossibleRulesFor for update (mockSubject) expected 1 rule, got %d", len(updateRules))
+		}
+		if updateRules[0].Action != "update" || updateRules[0].SubjectType != "MockSubject" || !updateRules[0].Inverted || updateRules[0].Reason != "No update" {
+			t.Errorf("Update rule mismatch: %+v", updateRules[0])
+		}
+
+		// Test for a different subject type, create action
+		createRules := PossibleRulesFor(a, create)
+		if len(createRules) != 1 {
+			t.Errorf("PossibleRulesFor for create (anotherMockSubject) expected 1 rule, got %d", len(createRules))
+		}
+		if createRules[0].Action != "create" || createRules[0].SubjectType != "anotherMockSubject" {
+			t.Errorf("Create rule mismatch: %+v", createRules[0])
+		}
+
+		// Test for non-existent action/subject combination
+		nonExistentAction := DefineAction[mockSubject]("nonExistent")
+		emptyRules := PossibleRulesFor(a, nonExistentAction)
+		if len(emptyRules) != 0 {
+			t.Errorf("PossibleRulesFor for non-existent action expected 0 rules, got %d", len(emptyRules))
 		}
 	})
 }
