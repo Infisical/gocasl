@@ -1,0 +1,12 @@
+[
+  {
+    "action": "read",
+    "subject": "Document",
+    "conditions": {"public": true}
+  },
+  {
+    "action": "delete",
+    "subject": "Document",
+    "conditions": {"owner": "{{ .user }}"}
+  }
+]
