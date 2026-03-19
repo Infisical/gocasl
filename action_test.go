@@ -48,15 +48,15 @@ func TestDefineAction(t *testing.T) {
 
 	// Define actions for Comment
 	readComment := DefineAction[Comment]("read")
-	
+
 	if readComment.Name() != "read" {
 		t.Errorf("Expected action name 'read', got %s", readComment.Name())
 	}
 
 	// Verify type safety (compile-time check mainly, but runtime verification here)
-	// We can't really test compile-time errors in runtime tests easily, 
+	// We can't really test compile-time errors in runtime tests easily,
 	// but the fact that this compiles is the test.
-	
+
 	// Ensure names are distinct even if string is same but type is different
 	// (Though in runtime they are just structs with strings, the generics enforce usage)
 }

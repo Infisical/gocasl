@@ -28,9 +28,9 @@ func TestAbilityBuilder(t *testing.T) {
 	// Test AddRule
 	readPost := DefineAction[mockSubject]("read")
 	r := Allow(readPost).Build()
-	
+
 	AddRule(b, r)
-	
+
 	if len(b.rules) != 1 {
 		t.Errorf("AddRule failed to add rule")
 	}

@@ -92,7 +92,7 @@ func TestArrayOperators(t *testing.T) {
 		{"$in", 1, []int{1, 2, 3}, true},
 		{"$in", 4, []int{1, 2, 3}, false},
 		{"$in", "a", []string{"a", "b"}, true},
-		
+
 		// $nin
 		{"$nin", 1, []int{1, 2, 3}, false},
 		{"$nin", 4, []int{1, 2, 3}, true},
@@ -187,7 +187,7 @@ func TestDSL(t *testing.T) {
 	if val, ok := sw["$regex"]; !ok || val != "^foo" {
 		t.Errorf("StartsWith failed: %v", sw)
 	}
-	
+
 	ew := EndsWith("bar")
 	if val, ok := ew["$regex"]; !ok || val != "bar$" {
 		t.Errorf("EndsWith failed: %v", ew)

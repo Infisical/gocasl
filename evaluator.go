@@ -148,13 +148,14 @@ func (c *condCompiler) compile(cond Cond) Condition {
 	var checks []Condition
 
 	for key, value := range cond {
-		if key == "$and" {
+		switch key {
+		case "$and":
 			checks = append(checks, c.compileAnd(value))
-		} else if key == "$or" {
+		case "$or":
 			checks = append(checks, c.compileOr(value))
-		} else if key == "$not" {
+		case "$not":
 			checks = append(checks, c.compileNot(value))
-		} else {
+		default:
 			// Field condition
 			checks = append(checks, c.compileField(key, value))
 		}

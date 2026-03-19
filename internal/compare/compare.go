@@ -19,8 +19,12 @@ func Compare(a, b any) int {
 	// Fast path for string
 	if as, ok := a.(string); ok {
 		if bs, ok := b.(string); ok {
-			if as < bs { return -1 }
-			if as > bs { return 1 }
+			if as < bs {
+				return -1
+			}
+			if as > bs {
+				return 1
+			}
 			return 0
 		}
 	}
@@ -28,8 +32,12 @@ func Compare(a, b any) int {
 	// Fast path for int
 	if ai, ok := a.(int); ok {
 		if bi, ok := b.(int); ok {
-			if ai < bi { return -1 }
-			if ai > bi { return 1 }
+			if ai < bi {
+				return -1
+			}
+			if ai > bi {
+				return 1
+			}
 			return 0
 		}
 	}
@@ -84,7 +92,7 @@ func Equal(a, b any) bool {
 	if a == nil || b == nil {
 		return false
 	}
-	
+
 	// Fast path for same type equality (basic types)
 	if a == b {
 		return true
@@ -96,7 +104,7 @@ func Equal(a, b any) bool {
 			return ai == bi
 		}
 	}
-	
+
 	valA := reflect.ValueOf(a)
 	valB := reflect.ValueOf(b)
 
@@ -133,20 +141,20 @@ func toFloat64(v reflect.Value) float64 {
 
 // Contains check for strings and arrays/slices
 func Contains(collection any, item any) bool {
-    val := reflect.ValueOf(collection)
-    switch val.Kind() {
-    case reflect.String:
-        itemStr, ok := item.(string)
-        if !ok {
-            return false
-        }
-        return strings.Contains(val.String(), itemStr)
-    case reflect.Slice, reflect.Array:
-        for i := 0; i < val.Len(); i++ {
-            if Equal(val.Index(i).Interface(), item) {
-                return true
-            }
-        }
-    }
-    return false
+	val := reflect.ValueOf(collection)
+	switch val.Kind() {
+	case reflect.String:
+		itemStr, ok := item.(string)
+		if !ok {
+			return false
+		}
+		return strings.Contains(val.String(), itemStr)
+	case reflect.Slice, reflect.Array:
+		for i := 0; i < val.Len(); i++ {
+			if Equal(val.Index(i).Interface(), item) {
+				return true
+			}
+		}
+	}
+	return false
 }

@@ -18,7 +18,7 @@ func TestPackUnpack(t *testing.T) {
 				{Action: []string{"read"}, Subject: []string{"Post"}},
 			},
 			expected: []PackedRule{
-				PackedRule{"read", "Post"},
+				{"read", "Post"},
 			},
 		},
 		{
@@ -31,7 +31,7 @@ func TestPackUnpack(t *testing.T) {
 				},
 			},
 			expected: []PackedRule{
-				PackedRule{"read", "Post", Cond{"published": true}},
+				{"read", "Post", Cond{"published": true}},
 			},
 		},
 		{
@@ -44,7 +44,7 @@ func TestPackUnpack(t *testing.T) {
 				},
 			},
 			expected: []PackedRule{
-				PackedRule{"delete", "Post", 0, 1},
+				{"delete", "Post", 0, 1},
 			},
 		},
 		{
@@ -57,7 +57,7 @@ func TestPackUnpack(t *testing.T) {
 				},
 			},
 			expected: []PackedRule{
-				PackedRule{"update", "Post", 0, 0, "title,body"},
+				{"update", "Post", 0, 0, "title,body"},
 			},
 		},
 		{
@@ -71,7 +71,7 @@ func TestPackUnpack(t *testing.T) {
 				},
 			},
 			expected: []PackedRule{
-				PackedRule{"delete", "Post", 0, 1, 0, "Not allowed"},
+				{"delete", "Post", 0, 1, 0, "Not allowed"},
 			},
 		},
 		{
@@ -87,7 +87,7 @@ func TestPackUnpack(t *testing.T) {
 				},
 			},
 			expected: []PackedRule{
-				PackedRule{"manage", "all", Cond{"orgId": 1}, 1, "id", "Root"},
+				{"manage", "all", Cond{"orgId": 1}, 1, "id", "Root"},
 			},
 		},
 		{
@@ -99,7 +99,7 @@ func TestPackUnpack(t *testing.T) {
 				},
 			},
 			expected: []PackedRule{
-				PackedRule{"read,update", "Post,Comment"},
+				{"read,update", "Post,Comment"},
 			},
 		},
 	}
@@ -116,10 +116,10 @@ func TestPackUnpack(t *testing.T) {
 			unpacked := UnpackRules(packed)
 			// Adjust input for comparison (handling nil vs empty slice if needed)
 			// But for these test cases, they should match well enough or I'll fix the test data.
-			
+
 			// Note: UnpackRules returns nil for empty slices if they were packed as 0 or empty string.
 			// Input has []string{"read"}.
-			
+
 			if !reflect.DeepEqual(unpacked, tt.input) {
 				// DeepEqual is strict about nil vs empty slice.
 				// Let's check manually if strict equality fails.
@@ -144,14 +144,14 @@ func TestPackUnpack(t *testing.T) {
 			if err := json.Unmarshal(bytes, &unmarshaledPacked); err != nil {
 				t.Fatalf("Failed to unmarshal packed: %v", err)
 			}
-			
+
 			// Check round trip unpacking
 			finalUnpacked := UnpackRules(unmarshaledPacked)
 			if len(finalUnpacked) != len(tt.input) {
 				t.Errorf("RoundTrip length mismatch")
 			} else {
 				for i := range finalUnpacked {
-					// We need a loose equality check here because JSON unmarshal 
+					// We need a loose equality check here because JSON unmarshal
 					// might change types (int -> float64).
 					// But UnpackRules handles that internally.
 					// However, Conditions map values might be float64 now.
@@ -169,11 +169,21 @@ func TestPackUnpack(t *testing.T) {
 
 // rulesEqual checks if two JSONRules are effectively equal, handling nil vs empty slice
 func rulesEqual(a, b JSONRule) bool {
-	if !slicesEqual(a.Action, b.Action) { return false }
-	if !slicesEqual(a.Subject, b.Subject) { return false }
-	if !slicesEqual(a.Fields, b.Fields) { return false }
-	if a.Inverted != b.Inverted { return false }
-	if a.Reason != b.Reason { return false }
+	if !slicesEqual(a.Action, b.Action) {
+		return false
+	}
+	if !slicesEqual(a.Subject, b.Subject) {
+		return false
+	}
+	if !slicesEqual(a.Fields, b.Fields) {
+		return false
+	}
+	if a.Inverted != b.Inverted {
+		return false
+	}
+	if a.Reason != b.Reason {
+		return false
+	}
 	if !reflect.DeepEqual(a.Conditions, b.Conditions) {
 		// If map is nil vs empty, DeepEqual handles it? No.
 		if len(a.Conditions) == 0 && len(b.Conditions) == 0 {
@@ -182,11 +192,11 @@ func rulesEqual(a, b JSONRule) bool {
 		// If values are different types (int vs float64)
 		// We can improve this check if needed, but for now rely on DeepEqual
 		// or manual check.
-		
+
 		// For the purpose of this test, we assume if Pack/Unpack works directly,
 		// the logic is correct. Round trip via JSON might introduce type changes
 		// which are expected in Go JSON handling.
-		
+
 		// Let's return false if DeepEqual fails, effectively making this function
 		// just a nil-slice-safe wrapper + DeepEqual.
 		return false

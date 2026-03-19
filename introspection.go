@@ -137,7 +137,7 @@ func AllowedFields[S Subject](a *Ability, action ActionFor[S], subject S) []stri
 	// Filter allowed fields
 	var result []string
 	seen := make(map[string]bool)
-	
+
 	for _, f := range allowed {
 		if !slices.Contains(forbidden, f) && !seen[f] {
 			result = append(result, f)

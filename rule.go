@@ -4,11 +4,11 @@ import "fmt"
 
 // Rule represents a single authorization rule for a specific subject type S.
 type Rule[S Subject] struct {
-	Action   ActionFor[S]
-	Inverted bool // Inverted is true for Forbid rules, false for Allow rules
-	Conditions     Cond
-	Fields   []string
-	Reason   string
+	Action     ActionFor[S]
+	Inverted   bool // Inverted is true for Forbid rules, false for Allow rules
+	Conditions Cond
+	Fields     []string
+	Reason     string
 }
 
 // RuleBuilder helps construct a Rule with a fluent API.

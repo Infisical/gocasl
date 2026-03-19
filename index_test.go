@@ -6,7 +6,7 @@ import (
 
 func TestRuleIndex(t *testing.T) {
 	compiler := newCompiler(defaultOperators(), nil)
-	
+
 	rules := []rawRule{
 		{
 			SubjectType: "Post",
@@ -53,14 +53,14 @@ func TestLazyCompilation(t *testing.T) {
 	// We want to verify that compilation happens only when match is called.
 	// We can't easily mock the compiler inside standard package test without exposing internals.
 	// But we can check if condition is nil before match and not nil after.
-	
+
 	compiler := newCompiler(defaultOperators(), nil)
 	r := rawRule{
 		SubjectType: "Post",
 		Action:      "read",
 		Conditions:  Cond{"ID": 1},
 	}
-	
+
 	idx := newRuleIndex([]rawRule{r}, compiler)
 	crs := idx.get("Post", "read")
 	cr := crs[0]
@@ -72,7 +72,7 @@ func TestLazyCompilation(t *testing.T) {
 	sub := mockSubject{ID: 1, Title: "Test"} // Using mockSubject but treating as Post for this test?
 	// Wait, match takes Subject interface. mockSubject implements it.
 	// But SubjectType must match? No, match() just runs the condition. The index lookup handled the type.
-	
+
 	cr.match(sub)
 
 	if cr.condition == nil {

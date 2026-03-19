@@ -2,8 +2,8 @@ package main
 
 import (
 	"fmt"
-	"log"
 	"github.com/akhilmhdh/gocasl"
+	"log"
 )
 
 type Document struct {
@@ -14,8 +14,12 @@ type Document struct {
 
 func (d Document) SubjectType() string { return "Document" }
 func (d Document) GetField(f string) any {
-	if f == "owner" { return d.Owner }
-	if f == "public" { return d.Public }
+	if f == "owner" {
+		return d.Owner
+	}
+	if f == "public" {
+		return d.Public
+	}
 	return nil
 }
 
@@ -39,4 +43,3 @@ func main() {
 	fmt.Printf("Alice can delete doc1 (bob's)? %v\n", gocasl.Can(ability, deleteOp, doc1))
 	fmt.Printf("Alice can delete doc2 (own)? %v\n", gocasl.Can(ability, deleteOp, doc2))
 }
-

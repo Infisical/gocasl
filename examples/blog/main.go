@@ -2,8 +2,8 @@ package main
 
 import (
 	"fmt"
-	"log"
 	"github.com/akhilmhdh/gocasl"
+	"log"
 )
 
 type Article struct {

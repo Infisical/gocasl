@@ -167,4 +167,3 @@ func TestProcessConditions(t *testing.T) {
 		t.Errorf("List const failed")
 	}
 }
-

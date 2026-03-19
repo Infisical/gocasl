@@ -25,12 +25,12 @@ func (i *ruleIndex) add(r rawRule, compiler *condCompiler) {
 	if i.index[r.SubjectType] == nil {
 		i.index[r.SubjectType] = make(map[string][]*compiledRule)
 	}
-	
+
 	cr := &compiledRule{
 		rule:     r,
 		compiler: compiler,
 	}
-	
+
 	i.index[r.SubjectType][r.Action] = append(i.index[r.SubjectType][r.Action], cr)
 }
 

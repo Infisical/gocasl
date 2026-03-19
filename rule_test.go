@@ -7,7 +7,7 @@ import (
 
 func TestRuleBuilder(t *testing.T) {
 	readAction := DefineAction[mockSubject]("read")
-	
+
 	// Test Allow
 	r1 := Allow(readAction).Build()
 	if r1.Inverted {
@@ -48,9 +48,17 @@ func TestRuleBuilder(t *testing.T) {
 		OnFields("Title").
 		Because("Owner").
 		Build()
-	
-	if r6.Inverted { t.Errorf("Chained rule inverted wrong") }
-	if !reflect.DeepEqual(r6.Conditions, cond) { t.Errorf("Chained rule cond wrong") }
-	if !reflect.DeepEqual(r6.Fields, []string{"Title"}) { t.Errorf("Chained rule fields wrong") }
-	if r6.Reason != "Owner" { t.Errorf("Chained rule reason wrong") }
+
+	if r6.Inverted {
+		t.Errorf("Chained rule inverted wrong")
+	}
+	if !reflect.DeepEqual(r6.Conditions, cond) {
+		t.Errorf("Chained rule cond wrong")
+	}
+	if !reflect.DeepEqual(r6.Fields, []string{"Title"}) {
+		t.Errorf("Chained rule fields wrong")
+	}
+	if r6.Reason != "Owner" {
+		t.Errorf("Chained rule reason wrong")
+	}
 }

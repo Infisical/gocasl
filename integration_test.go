@@ -20,10 +20,14 @@ type Article struct {
 func (a Article) SubjectType() string { return "Article" }
 func (a Article) GetField(f string) any {
 	switch f {
-	case "ID": return a.ID
-	case "AuthorID": return a.AuthorID
-	case "Published": return a.Published
-	case "Content": return a.Content
+	case "ID":
+		return a.ID
+	case "AuthorID":
+		return a.AuthorID
+	case "Published":
+		return a.Published
+	case "Content":
+		return a.Content
 	}
 	return nil
 }
@@ -43,9 +47,9 @@ func TestBlogIntegration(t *testing.T) {
 	// Articles
 	myArticle := Article{ID: 100, AuthorID: 2, Published: false, Content: "Draft"}
 	otherArticle := Article{ID: 101, AuthorID: 4, Published: true, Content: "Public"}
-	
+
 	// Define Rules for each role
-	
+
 	// Admin Ability
 	adminBuilder := NewAbility()
 	// Admin can manage everything
@@ -66,7 +70,7 @@ func TestBlogIntegration(t *testing.T) {
 	// Author Ability
 	authorBuilder := NewAbility()
 	authorBuilder.WithVars(map[string]any{"UserID": author.ID})
-	
+
 	// Can read any published article
 	AddRule(authorBuilder, Allow(read).Where(Cond{"Published": true}).Build())
 	// Can read own articles
@@ -74,7 +78,7 @@ func TestBlogIntegration(t *testing.T) {
 	// Can update own articles if not published (naive check, usually separate rule)
 	AddRule(authorBuilder, Allow(update).Where(Cond{"AuthorID": Var("UserID")}).Build())
 	// Cannot delete anything (implicit)
-	
+
 	authorAbility, err := authorBuilder.Build()
 	if err != nil {
 		t.Fatal(err)
@@ -104,7 +108,7 @@ func TestBlogIntegration(t *testing.T) {
 			"conditions": {"Published": true}
 		}
 	]`
-	
+
 	guestAbility, err := LoadFromJSON([]byte(jsonRules), LoadOptions{})
 	if err != nil {
 		t.Fatalf("Failed to load guest rules: %v", err)

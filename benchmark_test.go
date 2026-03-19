@@ -16,7 +16,7 @@ func BenchmarkCan_Simple(b *testing.B) {
 	}
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		Can(a, read, sub)
 	}
 }
@@ -32,7 +32,7 @@ func BenchmarkCan_NoRules(b *testing.B) {
 	}
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		Can(a, read, sub)
 	}
 }
@@ -61,7 +61,7 @@ func BenchmarkCan_Complex(b *testing.B) {
 	}
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		Can(a, read, sub)
 	}
 }
@@ -83,7 +83,7 @@ func BenchmarkCan_LargeRuleSet(b *testing.B) {
 	}
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		Can(a, read, sub)
 	}
 }
@@ -97,7 +97,7 @@ func BenchmarkRuleIndexing(b *testing.B) {
 	}
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		builder := NewAbility()
 		AddRules(builder, rules...)
 		_, err := builder.Build()

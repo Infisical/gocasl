@@ -2,8 +2,8 @@ package main
 
 import (
 	"fmt"
-	"log"
 	"github.com/akhilmhdh/gocasl"
+	"log"
 )
 
 // 1. Define Subject
@@ -58,11 +58,16 @@ func opBetween(fieldValue, operand any) bool {
 // Helper to convert any number to float64
 func toFloat(v any) (float64, bool) {
 	switch i := v.(type) {
-	case float64: return i, true
-	case float32: return float64(i), true
-	case int:     return float64(i), true
-	case int64:   return float64(i), true
-	default:      return 0, false
+	case float64:
+		return i, true
+	case float32:
+		return float64(i), true
+	case int:
+		return float64(i), true
+	case int64:
+		return float64(i), true
+	default:
+		return 0, false
 	}
 }
 
@@ -104,11 +109,11 @@ func main() {
 	expensive := Product{ID: "p3", Price: 200.0}
 
 	fmt.Println("Checking Permissions (Price Policy: $10 - $100)")
-	
-	fmt.Printf("Can buy Cheap ($5.0)? %v\n", gocasl.Can(ability, buy, cheap))          // false
+
+	fmt.Printf("Can buy Cheap ($5.0)? %v\n", gocasl.Can(ability, buy, cheap))            // false
 	fmt.Printf("Can buy Affordable ($50.0)? %v\n", gocasl.Can(ability, buy, affordable)) // true
 	fmt.Printf("Can buy Expensive ($200.0)? %v\n", gocasl.Can(ability, buy, expensive))  // false
-	
+
 	// Check read (always true)
 	fmt.Printf("Can read Expensive? %v\n", gocasl.Can(ability, read, expensive)) // true
 }

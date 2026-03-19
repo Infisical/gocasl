@@ -88,7 +88,7 @@ func TestPermissions(t *testing.T) {
 			t.Errorf("CanWithField(ID) should be true")
 		}
 	})
-	
+
 	t.Run("Allow Specific Fields", func(t *testing.T) {
 		b := NewAbility()
 		AddRule(b, Allow(read).OnFields("ID").Build())
@@ -100,7 +100,7 @@ func TestPermissions(t *testing.T) {
 		if !Can(a, read, sub) {
 			t.Errorf("Can(read) should be true (partial access)")
 		}
-		
+
 		if !CanWithField(a, read, sub, "ID") {
 			t.Errorf("CanWithField(ID) should be true")
 		}

@@ -27,12 +27,12 @@ func (s *StringOrSlice) UnmarshalJSON(data []byte) error {
 
 // JSONRule represents the JSON structure of a rule.
 type JSONRule struct {
-	Action      StringOrSlice `json:"action"`
-	Subject     StringOrSlice `json:"subject"`
-	Fields      StringOrSlice `json:"fields"`
-	Conditions  Cond          `json:"conditions"`
-	Inverted    bool          `json:"inverted"`
-	Reason      string        `json:"reason"`
+	Action     StringOrSlice `json:"action"`
+	Subject    StringOrSlice `json:"subject"`
+	Fields     StringOrSlice `json:"fields"`
+	Conditions Cond          `json:"conditions"`
+	Inverted   bool          `json:"inverted"`
+	Reason     string        `json:"reason"`
 }
 
 // DefaultMaxJSONSize is the default maximum size in bytes for JSON rule loading (1MB).

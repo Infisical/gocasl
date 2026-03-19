@@ -116,7 +116,7 @@ func TestIntrospection(t *testing.T) {
 		if AllowedFields(a, read, sub) != nil {
 			t.Errorf("Expected nil for wildcard allowed")
 		}
-		
+
 		// Test full forbid
 		b = NewAbility()
 		AddRule(b, Allow(read).OnFields("A").Build())
@@ -160,10 +160,10 @@ func TestIntrospection(t *testing.T) {
 		create := DefineAction[anotherMockSubject]("create") // Different subject type
 
 		b := NewAbility()
-		AddRule(b, Allow(read).Where(Cond{"ID": 1}).Build()) // Rule 1 for mockSubject, read
-		AddRule(b, Allow(read).OnFields("Title").Build())    // Rule 2 for mockSubject, read
+		AddRule(b, Allow(read).Where(Cond{"ID": 1}).Build())    // Rule 1 for mockSubject, read
+		AddRule(b, Allow(read).OnFields("Title").Build())       // Rule 2 for mockSubject, read
 		AddRule(b, Forbid(update).Because("No update").Build()) // Rule 3 for mockSubject, update
-		AddRule(b, Allow(create).Build())                    // Rule 4 for anotherMockSubject, create
+		AddRule(b, Allow(create).Build())                       // Rule 4 for anotherMockSubject, create
 		a, err := b.Build()
 		if err != nil {
 			t.Fatal(err)
