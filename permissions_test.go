@@ -16,7 +16,10 @@ func TestPermissions(t *testing.T) {
 	t.Run("Basic Allow", func(t *testing.T) {
 		b := NewAbility()
 		AddRule(b, Allow(read).Build())
-		a := b.Build()
+		a, err := b.Build()
+		if err != nil {
+			t.Fatal(err)
+		}
 
 		if !Can(a, read, sub) {
 			t.Errorf("Should allow read")
@@ -30,7 +33,10 @@ func TestPermissions(t *testing.T) {
 		b := NewAbility()
 		AddRule(b, Allow(read).Where(Cond{"ID": 1}).Build())
 		AddRule(b, Allow(update).Where(Cond{"ID": 2}).Build())
-		a := b.Build()
+		a, err := b.Build()
+		if err != nil {
+			t.Fatal(err)
+		}
 
 		if !Can(a, read, sub) {
 			t.Errorf("Should allow read (ID=1)")
@@ -44,7 +50,10 @@ func TestPermissions(t *testing.T) {
 		b := NewAbility()
 		AddRule(b, Allow(read).Build())
 		AddRule(b, Forbid(read).Where(Cond{"ID": 1}).Build())
-		a := b.Build()
+		a, err := b.Build()
+		if err != nil {
+			t.Fatal(err)
+		}
 
 		if Can(a, read, sub) {
 			t.Errorf("Should forbid read (ID=1 matches forbid)")
@@ -61,7 +70,10 @@ func TestPermissions(t *testing.T) {
 		// Allow reading everything except Title
 		AddRule(b, Allow(read).Build())
 		AddRule(b, Forbid(read).OnFields("Title").Build())
-		a := b.Build()
+		a, err := b.Build()
+		if err != nil {
+			t.Fatal(err)
+		}
 
 		// Resource level access should be true (can read other fields)
 		if !Can(a, read, sub) {
@@ -80,8 +92,11 @@ func TestPermissions(t *testing.T) {
 	t.Run("Allow Specific Fields", func(t *testing.T) {
 		b := NewAbility()
 		AddRule(b, Allow(read).OnFields("ID").Build())
-		a := b.Build()
-		
+		a, err := b.Build()
+		if err != nil {
+			t.Fatal(err)
+		}
+
 		if !Can(a, read, sub) {
 			t.Errorf("Can(read) should be true (partial access)")
 		}
@@ -96,7 +111,10 @@ func TestPermissions(t *testing.T) {
 
 	t.Run("Cannot", func(t *testing.T) {
 		b := NewAbility()
-		a := b.Build()
+		a, err := b.Build()
+		if err != nil {
+			t.Fatal(err)
+		}
 		if !Cannot(a, read, sub) {
 			t.Errorf("Cannot should be true when no rules")
 		}
@@ -106,7 +124,10 @@ func TestPermissions(t *testing.T) {
 		b := NewAbility()
 		AddRule(b, Allow(read).Build())
 		AddRule(b, Allow(update).Build())
-		a := b.Build()
+		a, err := b.Build()
+		if err != nil {
+			t.Fatal(err)
+		}
 
 		if !CanAll(a, sub, read, update) {
 			t.Errorf("CanAll should be true")

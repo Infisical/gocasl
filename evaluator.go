@@ -2,6 +2,8 @@ package gocasl
 
 import (
 	"fmt"
+	"sort"
+	"strings"
 )
 
 // Condition is a compiled function that evaluates a subject against a set of rules.
@@ -14,12 +16,128 @@ type condCompiler struct {
 
 func newCompiler(ops Operators, vars map[string]any) *condCompiler {
 	if ops == nil {
-		ops = DefaultOperators
+		ops = defaultOperators()
 	}
 	return &condCompiler{
 		ops:  ops,
 		vars: vars,
 	}
+}
+
+// validate checks all conditions for unresolved VarRefs and unknown operators.
+// It returns an error describing all problems found.
+func (c *condCompiler) validate(rules []rawRule) error {
+	var errs []string
+	for i, r := range rules {
+		if r.Conditions == nil {
+			continue
+		}
+		c.validateCond(r.Conditions, fmt.Sprintf("rule[%d](%s/%s)", i, r.SubjectType, r.Action), &errs)
+	}
+	if len(errs) > 0 {
+		return fmt.Errorf("ability build validation failed:\n%s", joinErrors(errs))
+	}
+	return nil
+}
+
+func (c *condCompiler) validateCond(cond Cond, path string, errs *[]string) {
+	for key, value := range cond {
+		switch key {
+		case "$and":
+			if list, ok := value.([]any); ok {
+				for i, item := range list {
+					childPath := fmt.Sprintf("%s.$and[%d]", path, i)
+					if condMap, ok := item.(Cond); ok {
+						c.validateCond(condMap, childPath, errs)
+					} else if mapItem, ok := item.(map[string]any); ok {
+						c.validateCond(Cond(mapItem), childPath, errs)
+					}
+				}
+			}
+		case "$or":
+			if list, ok := value.([]any); ok {
+				for i, item := range list {
+					childPath := fmt.Sprintf("%s.$or[%d]", path, i)
+					if condMap, ok := item.(Cond); ok {
+						c.validateCond(condMap, childPath, errs)
+					} else if mapItem, ok := item.(map[string]any); ok {
+						c.validateCond(Cond(mapItem), childPath, errs)
+					}
+				}
+			}
+		case "$not":
+			childPath := fmt.Sprintf("%s.$not", path)
+			if condMap, ok := value.(Cond); ok {
+				c.validateCond(condMap, childPath, errs)
+			} else if mapItem, ok := value.(map[string]any); ok {
+				c.validateCond(Cond(mapItem), childPath, errs)
+			}
+		default:
+			// Field condition — validate value for VarRefs and operator names
+			c.validateValue(value, fmt.Sprintf("%s.%s", path, key), errs)
+		}
+	}
+}
+
+func (c *condCompiler) validateValue(val any, path string, errs *[]string) {
+	switch v := val.(type) {
+	case VarRef:
+		if _, found := c.vars[string(v)]; !found {
+			*errs = append(*errs, fmt.Sprintf("%s: unresolved variable %q", path, string(v)))
+		}
+	case Op:
+		c.validateOperatorMap(map[string]any(v), path, errs)
+	case map[string]any:
+		isOp := len(v) > 0
+		for k := range v {
+			if len(k) == 0 || k[0] != '$' {
+				isOp = false
+				break
+			}
+		}
+		if isOp {
+			c.validateOperatorMap(v, path, errs)
+		}
+	case Cond:
+		isOp := len(v) > 0
+		for k := range v {
+			if len(k) == 0 || k[0] != '$' {
+				isOp = false
+				break
+			}
+		}
+		if isOp {
+			c.validateOperatorMap(map[string]any(v), path, errs)
+		}
+	}
+}
+
+func (c *condCompiler) validateOperatorMap(ops map[string]any, path string, errs *[]string) {
+	// Sort keys for deterministic error messages
+	keys := make([]string, 0, len(ops))
+	for k := range ops {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
+	for _, opName := range keys {
+		if _, ok := c.ops[opName]; !ok {
+			*errs = append(*errs, fmt.Sprintf("%s: unknown operator %q", path, opName))
+		}
+		// Also validate the operator's constraint value for VarRefs
+		c.validateValue(ops[opName], fmt.Sprintf("%s.%s", path, opName), errs)
+	}
+}
+
+func joinErrors(errs []string) string {
+	var s strings.Builder
+	for i, e := range errs {
+		if i > 0 {
+			s.WriteString("\n")
+		}
+		s.WriteString("  - " + e)
+	}
+	return s.String()
 }
 
 func (c *condCompiler) compile(cond Cond) Condition {
@@ -128,7 +246,7 @@ func (c *condCompiler) compileField(field string, value any) Condition {
 	// 1. A map of operators (Op) -> {"$gt": 10}
 	// 2. A bare value -> 10 (implicit $eq)
 	// 3. A VarRef -> Var("ID") (implicit $eq with resolved value)
-	
+
 	resolvedValue := c.resolveValue(value)
 
 	// Check if it's an operator map
@@ -141,7 +259,7 @@ func (c *condCompiler) compileField(field string, value any) Condition {
 				break
 			}
 		}
-		
+
 		// If it's a mix or doesn't start with $, treat as direct comparison (nested object or map equality)
 		// But in CASL, operators must start with $.
 		// If isOp is true, compile operators.
@@ -171,7 +289,7 @@ func (c *condCompiler) compileField(field string, value any) Condition {
 	// Implicit $eq
 	// If resolvedValue contains VarRef (not resolved earlier because it wasn't top level?), handle it?
 	// resolveValue handles top level VarRef.
-	
+
 	// Create $eq check
 	opEqFunc := c.ops["$eq"]
 	return func(subject Subject) bool {
@@ -181,19 +299,26 @@ func (c *condCompiler) compileField(field string, value any) Condition {
 }
 
 func (c *condCompiler) compileOperators(field string, ops map[string]any) Condition {
+	// Sort keys for deterministic evaluation order
+	keys := make([]string, 0, len(ops))
+	for k := range ops {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
 	var checks []func(any) bool
 
-	for opName, opVal := range ops {
+	for _, opName := range keys {
+		opVal := ops[opName]
 		opFunc, ok := c.ops[opName]
 		if !ok {
-			// Operator not found - fail safe? or panic?
+			// Validated at Build() time, so this should not happen.
 			// Fail safe: condition fails.
-			fmt.Printf("Warning: Operator %s not found\n", opName)
 			return func(s Subject) bool { return false }
 		}
 
 		resolvedOpVal := c.resolveValue(opVal)
-		
+
 		checks = append(checks, func(fieldVal any) bool {
 			return opFunc(fieldVal, resolvedOpVal)
 		})
@@ -215,11 +340,13 @@ func (c *condCompiler) resolveValue(val any) any {
 		if resolved, found := c.vars[string(v)]; found {
 			return resolved
 		}
-		// If var not found, what to do?
-		// Return nil or keep as VarRef?
-		// Returning nil might match nil checks.
-		// Returning special "undefined" might be better but complexity increases.
-		return nil
+		// Validated at Build() time, so this should not happen.
+		// Fail-secure: use a sentinel that will never match any field value.
+		return unresolvedVarSentinel{}
 	}
 	return val
 }
+
+// unresolvedVarSentinel is a type that will never equal any real field value,
+// ensuring unresolved variables always cause conditions to fail (deny access).
+type unresolvedVarSentinel struct{}

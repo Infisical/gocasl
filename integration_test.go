@@ -54,7 +54,10 @@ func TestBlogIntegration(t *testing.T) {
 	AddRule(adminBuilder, Allow(deleteOp).Build())
 	AddRule(adminBuilder, Allow(publish).Build())
 	// In reality we might use "manage" "all" but we use specific actions here
-	adminAbility := adminBuilder.Build()
+	adminAbility, err := adminBuilder.Build()
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	if !Can(adminAbility, deleteOp, otherArticle) {
 		t.Errorf("Admin should be able to delete any article")
@@ -72,7 +75,10 @@ func TestBlogIntegration(t *testing.T) {
 	AddRule(authorBuilder, Allow(update).Where(Cond{"AuthorID": Var("UserID")}).Build())
 	// Cannot delete anything (implicit)
 	
-	authorAbility := authorBuilder.Build()
+	authorAbility, err := authorBuilder.Build()
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	if !Can(authorAbility, read, otherArticle) {
 		t.Errorf("Author should be able to read public article")

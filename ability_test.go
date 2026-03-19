@@ -48,7 +48,10 @@ func TestAbilityBuilder(t *testing.T) {
 	}
 
 	// Test Build
-	a := b.Build()
+	a, err := b.Build()
+	if err != nil {
+		t.Fatal(err)
+	}
 	if a.index == nil {
 		t.Errorf("Build failed to create index")
 	}

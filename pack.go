@@ -21,7 +21,7 @@ func PackRules(rules []JSONRule) []PackedRule {
 
 		// 3. Conditions
 		var conditions any = 0
-		if r.Conditions != nil && len(r.Conditions) > 0 {
+		if len(r.Conditions) > 0 {
 			conditions = r.Conditions
 		}
 

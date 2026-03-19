@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"log"
 	"github.com/akhilmhdh/gocasl"
 )
 
@@ -40,7 +41,10 @@ func main() {
 	gocasl.AddRule(builder, gocasl.Allow(update).Where(gocasl.Cond{"Owner": 1}).Build())
 
 	// Build ability
-	ability := builder.Build()
+	ability, err := builder.Build()
+	if err != nil {
+		log.Fatal(err)
+	}
 
 	// Check permissions
 	post1 := Post{ID: 100, Title: "Hello", Owner: 1}

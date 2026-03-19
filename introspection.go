@@ -6,14 +6,14 @@ import (
 
 // WhyNot returns the reason why an action is denied.
 // It returns an empty string if the action is allowed.
+// The evaluation logic mirrors Can() exactly.
 func WhyNot[S Subject](a *Ability, action ActionFor[S], subject S) string {
 	rules := a.index.get(subject.SubjectType(), action.Name())
 	if rules == nil {
 		return "No rules found for this subject/action"
 	}
 
-	allowed := false
-	var forbidReason string
+	granted := false
 
 	for _, rule := range rules {
 		if !rule.match(subject) {
@@ -21,23 +21,19 @@ func WhyNot[S Subject](a *Ability, action ActionFor[S], subject S) string {
 		}
 
 		if rule.rule.Inverted {
+			// Forbid rule — mirrors Can() exactly
 			if len(rule.rule.Fields) == 0 {
-				// Resource-level forbid
 				if rule.rule.Reason != "" {
 					return rule.rule.Reason
 				}
-				forbidReason = "Forbidden by rule"
+				return "Forbidden by rule"
 			}
 		} else {
-			allowed = true
+			granted = true
 		}
 	}
 
-	if forbidReason != "" {
-		return forbidReason
-	}
-
-	if allowed {
+	if granted {
 		return ""
 	}
 

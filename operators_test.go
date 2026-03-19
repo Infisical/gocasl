@@ -6,10 +6,10 @@ import (
 )
 
 func TestOperatorsMethods(t *testing.T) {
-	ops := DefaultOperators.Clone()
+	ops := defaultOperators().Clone()
 
 	// Test Clone
-	if len(ops) != len(DefaultOperators) {
+	if len(ops) != len(defaultOperators()) {
 		t.Errorf("Clone failed size check")
 	}
 
@@ -74,7 +74,7 @@ func TestComparisonOperators(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		fn := DefaultOperators[tt.op]
+		fn := defaultOperators()[tt.op]
 		if got := fn(tt.val, tt.cons); got != tt.want {
 			t.Errorf("%s(%v, %v) = %v; want %v", tt.op, tt.val, tt.cons, got, tt.want)
 		}
@@ -99,7 +99,7 @@ func TestArrayOperators(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		fn := DefaultOperators[tt.op]
+		fn := defaultOperators()[tt.op]
 		if got := fn(tt.val, tt.cons); got != tt.want {
 			t.Errorf("%s(%v, %v) = %v; want %v", tt.op, tt.val, tt.cons, got, tt.want)
 		}
@@ -125,7 +125,7 @@ func TestStringOperators(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		fn := DefaultOperators[tt.op]
+		fn := defaultOperators()[tt.op]
 		if got := fn(tt.val, tt.cons); got != tt.want {
 			t.Errorf("%s(%v, %v) = %v; want %v", tt.op, tt.val, tt.cons, got, tt.want)
 		}
@@ -152,7 +152,7 @@ func TestOtherOperators(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		fn := DefaultOperators[tt.op]
+		fn := defaultOperators()[tt.op]
 		if got := fn(tt.val, tt.cons); got != tt.want {
 			t.Errorf("%s(%v, %v) = %v; want %v", tt.op, tt.val, tt.cons, got, tt.want)
 		}

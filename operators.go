@@ -1,34 +1,40 @@
 package gocasl
 
 import (
+	"maps"
 	"reflect"
 	"regexp"
 
 	"github.com/akhilmhdh/gocasl/internal/compare"
 )
 
-// DefaultOperators contains all the built-in operators.
-var DefaultOperators = Operators{
-	"$eq":        opEq,
-	"$ne":        opNe,
-	"$gt":        opGt,
-	"$gte":       opGte,
-	"$lt":        opLt,
-	"$lte":       opLte,
-	"$in":        opIn,
-	"$nin":       opNin,
-	"$regex":     opRegex,
-	"$contains":  opContains,
-	"$exists":    opExists,
-	"$size":      opSize,
+// DefaultOperators returns a fresh copy of the built-in operators.
+// Each call returns an independent copy that is safe to modify.
+func DefaultOperators() Operators {
+	return defaultOperators()
+}
+
+func defaultOperators() Operators {
+	return Operators{
+		"$eq":       opEq,
+		"$ne":       opNe,
+		"$gt":       opGt,
+		"$gte":      opGte,
+		"$lt":       opLt,
+		"$lte":      opLte,
+		"$in":       opIn,
+		"$nin":      opNin,
+		"$regex":    opRegex,
+		"$contains": opContains,
+		"$exists":   opExists,
+		"$size":     opSize,
+	}
 }
 
 // Clone returns a shallow copy of the operators map.
 func (o Operators) Clone() Operators {
 	newOps := make(Operators, len(o))
-	for k, v := range o {
-		newOps[k] = v
-	}
+	maps.Copy(newOps, o)
 	return newOps
 }
 
@@ -51,9 +57,7 @@ func (o Operators) Without(names ...string) Operators {
 // WithAll merges another set of operators into this one.
 func (o Operators) WithAll(other Operators) Operators {
 	newOps := o.Clone()
-	for k, v := range other {
-		newOps[k] = v
-	}
+	maps.Copy(newOps, other)
 	return newOps
 }
 
@@ -132,8 +136,8 @@ func opSize(val any, constraint any) bool {
 		valC := reflect.ValueOf(constraint)
 		if compare.Equal(constraint, int(0)) { // simple check
 			// fall back to reflection if needed, but int is expected from DSL
-			if valC.CanConvert(reflect.TypeOf(0)) {
-				size = int(valC.Convert(reflect.TypeOf(0)).Int())
+			if valC.CanConvert(reflect.TypeFor[int]()) {
+				size = int(valC.Convert(reflect.TypeFor[int]()).Int())
 			} else {
 				return false
 			}
@@ -149,27 +153,26 @@ func opSize(val any, constraint any) bool {
 
 	v := reflect.ValueOf(val)
 	switch v.Kind() {
-	case reflect.String, reflect.Slice, reflect.Array, reflect.Map, reflect.Chan:
+	case reflect.String, reflect.Slice, reflect.Array, reflect.Map:
 		return v.Len() == size
 	}
 	return false
 }
 
-
 // --- DSL Functions ---
 
-func Eq(val any) Op { return Op{"$eq": val} }
-func Ne(val any) Op { return Op{"$ne": val} }
-func Gt(val any) Op { return Op{"$gt": val} }
-func Gte(val any) Op { return Op{"$gte": val} }
-func Lt(val any) Op { return Op{"$lt": val} }
-func Lte(val any) Op { return Op{"$lte": val} }
-func In(vals ...any) Op { return Op{"$in": vals} }
-func Nin(vals ...any) Op { return Op{"$nin": vals} }
+func Eq(val any) Op           { return Op{"$eq": val} }
+func Ne(val any) Op           { return Op{"$ne": val} }
+func Gt(val any) Op           { return Op{"$gt": val} }
+func Gte(val any) Op          { return Op{"$gte": val} }
+func Lt(val any) Op           { return Op{"$lt": val} }
+func Lte(val any) Op          { return Op{"$lte": val} }
+func In(vals ...any) Op       { return Op{"$in": vals} }
+func Nin(vals ...any) Op      { return Op{"$nin": vals} }
 func Regex(pattern string) Op { return Op{"$regex": pattern} }
-func Contains(val any) Op { return Op{"$contains": val} }
-func Exists(exists bool) Op { return Op{"$exists": exists} }
-func Size(size int) Op { return Op{"$size": size} }
+func Contains(val any) Op     { return Op{"$contains": val} }
+func Exists(exists bool) Op   { return Op{"$exists": exists} }
+func Size(size int) Op        { return Op{"$size": size} }
 
 // StartsWith is a convenience DSL that uses Regex
 func StartsWith(prefix string) Op {

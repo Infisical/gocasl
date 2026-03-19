@@ -35,12 +35,18 @@ type JSONRule struct {
 	Reason      string        `json:"reason"`
 }
 
+// DefaultMaxJSONSize is the default maximum size in bytes for JSON rule loading (1MB).
+const DefaultMaxJSONSize = 1 << 20
+
 // LoadOptions configures the JSON loading process.
 type LoadOptions struct {
 	// Operators to use in the Ability. Defaults to DefaultOperators.
 	Operators Operators
 	// Variables for template resolution.
 	Vars map[string]any
+	// MaxSize limits the maximum bytes read from a Reader.
+	// Defaults to DefaultMaxJSONSize (1MB) if zero.
+	MaxSize int64
 }
 
 // LoadFromJSON loads rules from a JSON byte slice.
@@ -77,7 +83,7 @@ func LoadFromJSON(data []byte, opts LoadOptions) (*Ability, error) {
 		}
 	}
 
-	return builder.Build(), nil
+	return builder.Build()
 }
 
 // LoadFromFile loads rules from a JSON file.
@@ -90,10 +96,18 @@ func LoadFromFile(path string, opts LoadOptions) (*Ability, error) {
 }
 
 // LoadFromReader loads rules from an io.Reader.
+// It limits the bytes read to opts.MaxSize (defaults to DefaultMaxJSONSize).
 func LoadFromReader(r io.Reader, opts LoadOptions) (*Ability, error) {
-	data, err := io.ReadAll(r)
+	maxSize := opts.MaxSize
+	if maxSize <= 0 {
+		maxSize = DefaultMaxJSONSize
+	}
+	data, err := io.ReadAll(io.LimitReader(r, maxSize+1))
 	if err != nil {
 		return nil, err
+	}
+	if int64(len(data)) > maxSize {
+		return nil, fmt.Errorf("JSON input exceeds maximum size of %d bytes", maxSize)
 	}
 	return LoadFromJSON(data, opts)
 }

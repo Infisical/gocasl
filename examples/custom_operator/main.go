@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"log"
 	"github.com/akhilmhdh/gocasl"
 )
 
@@ -77,7 +78,7 @@ func main() {
 
 	// 4. Register Operator in AbilityBuilder
 	// Start with DefaultOperators and add ours
-	myOperators := gocasl.DefaultOperators.With("$between", opBetween)
+	myOperators := gocasl.DefaultOperators().With("$between", opBetween)
 
 	builder := gocasl.NewAbility().WithOperators(myOperators)
 
@@ -92,7 +93,10 @@ func main() {
 		}).
 		Build())
 
-	ability := builder.Build()
+	ability, err := builder.Build()
+	if err != nil {
+		log.Fatal(err)
+	}
 
 	// 5. Test It
 	cheap := Product{ID: "p1", Price: 5.0}

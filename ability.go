@@ -20,7 +20,7 @@ type rawRule struct {
 // NewAbility creates a new AbilityBuilder with default operators.
 func NewAbility() *AbilityBuilder {
 	return &AbilityBuilder{
-		ops: DefaultOperators,
+		ops: defaultOperators(),
 	}
 }
 
@@ -59,14 +59,21 @@ func AddRules[S Subject](b *AbilityBuilder, rules ...Rule[S]) *AbilityBuilder {
 }
 
 // Build creates the immutable Ability instance.
-func (b *AbilityBuilder) Build() *Ability {
+// It validates all rules, returning an error if any conditions reference
+// unresolved template variables or unknown operators.
+func (b *AbilityBuilder) Build() (*Ability, error) {
 	compiler := newCompiler(b.ops, b.vars)
+
+	if err := compiler.validate(b.rules); err != nil {
+		return nil, err
+	}
+
 	index := newRuleIndex(b.rules, compiler)
-	
+
 	return &Ability{
 		index:    index,
 		compiler: compiler,
-	}
+	}, nil
 }
 
 // Ability represents a set of permissions.

@@ -28,7 +28,10 @@ func TestIntrospection(t *testing.T) {
 	t.Run("WhyNot", func(t *testing.T) {
 		b := NewAbility()
 		AddRule(b, Forbid(read).Because("Private").Build())
-		a := b.Build()
+		a, err := b.Build()
+		if err != nil {
+			t.Fatal(err)
+		}
 
 		reason := WhyNot(a, read, sub)
 		if reason != "Private" {
@@ -37,7 +40,10 @@ func TestIntrospection(t *testing.T) {
 
 		// Test generic deny
 		b = NewAbility()
-		a = b.Build()
+		a, err = b.Build()
+		if err != nil {
+			t.Fatal(err)
+		}
 		reason = WhyNot(a, read, sub)
 		if reason == "" {
 			t.Errorf("WhyNot expected reason for default deny")
@@ -46,7 +52,10 @@ func TestIntrospection(t *testing.T) {
 		// Test allowed
 		b = NewAbility()
 		AddRule(b, Allow(read).Build())
-		a = b.Build()
+		a, err = b.Build()
+		if err != nil {
+			t.Fatal(err)
+		}
 		reason = WhyNot(a, read, sub)
 		if reason != "" {
 			t.Errorf("WhyNot expected empty string, got '%s'", reason)
@@ -57,7 +66,10 @@ func TestIntrospection(t *testing.T) {
 		b := NewAbility()
 		AddRule(b, Allow(read).Where(Cond{"ID": 1}).Build())
 		AddRule(b, Allow(read).Where(Cond{"ID": 2}).Build())
-		a := b.Build()
+		a, err := b.Build()
+		if err != nil {
+			t.Fatal(err)
+		}
 
 		rules := RulesFor(a, read, sub)
 		if len(rules) != 2 {
@@ -76,7 +88,10 @@ func TestIntrospection(t *testing.T) {
 		AddRule(b, Allow(read).OnFields("A", "B").Build())
 		AddRule(b, Allow(read).OnFields("B", "C").Build())
 		AddRule(b, Forbid(read).OnFields("C").Build())
-		a := b.Build()
+		a, err := b.Build()
+		if err != nil {
+			t.Fatal(err)
+		}
 
 		fields := AllowedFields(a, read, sub)
 		// Expected: A, B (C is forbidden)
@@ -94,7 +109,10 @@ func TestIntrospection(t *testing.T) {
 		// Test wildcard
 		b = NewAbility()
 		AddRule(b, Allow(read).Build())
-		a = b.Build()
+		a, err = b.Build()
+		if err != nil {
+			t.Fatal(err)
+		}
 		if AllowedFields(a, read, sub) != nil {
 			t.Errorf("Expected nil for wildcard allowed")
 		}
@@ -103,7 +121,10 @@ func TestIntrospection(t *testing.T) {
 		b = NewAbility()
 		AddRule(b, Allow(read).OnFields("A").Build())
 		AddRule(b, Forbid(read).Build())
-		a = b.Build()
+		a, err = b.Build()
+		if err != nil {
+			t.Fatal(err)
+		}
 		if len(AllowedFields(a, read, sub)) != 0 {
 			t.Errorf("Expected empty allowed fields for full forbid")
 		}
@@ -112,7 +133,10 @@ func TestIntrospection(t *testing.T) {
 	t.Run("ForbiddenFields", func(t *testing.T) {
 		b := NewAbility()
 		AddRule(b, Forbid(read).OnFields("A", "B").Build())
-		a := b.Build()
+		a, err := b.Build()
+		if err != nil {
+			t.Fatal(err)
+		}
 
 		fields := ForbiddenFields(a, read, sub)
 		if len(fields) != 2 {
@@ -122,7 +146,10 @@ func TestIntrospection(t *testing.T) {
 		// Test wildcard
 		b = NewAbility()
 		AddRule(b, Forbid(read).Build())
-		a = b.Build()
+		a, err = b.Build()
+		if err != nil {
+			t.Fatal(err)
+		}
 		if ForbiddenFields(a, read, sub) != nil {
 			t.Errorf("Expected nil for wildcard forbidden")
 		}
@@ -137,7 +164,10 @@ func TestIntrospection(t *testing.T) {
 		AddRule(b, Allow(read).OnFields("Title").Build())    // Rule 2 for mockSubject, read
 		AddRule(b, Forbid(update).Because("No update").Build()) // Rule 3 for mockSubject, update
 		AddRule(b, Allow(create).Build())                    // Rule 4 for anotherMockSubject, create
-		a := b.Build()
+		a, err := b.Build()
+		if err != nil {
+			t.Fatal(err)
+		}
 
 		// Test for mockSubject, read action
 		rules := PossibleRulesFor(a, read)

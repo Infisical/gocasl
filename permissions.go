@@ -1,11 +1,27 @@
 package gocasl
 
-import "slices"
+import (
+	"reflect"
+	"slices"
+)
+
+// isNilSubject checks whether a Subject value is a nil pointer/interface.
+func isNilSubject(s Subject) bool {
+	if s == nil {
+		return true
+	}
+	v := reflect.ValueOf(s)
+	return v.Kind() == reflect.Pointer && v.IsNil()
+}
 
 // Can checks if the subject is allowed to perform the action.
 // It checks for resource-level access, ignoring field-level restrictions
 // unless a forbid rule blocks the entire resource.
+// It returns false (deny) if subject is nil.
 func Can[S Subject](a *Ability, action ActionFor[S], subject S) bool {
+	if isNilSubject(subject) {
+		return false
+	}
 	rules := a.index.get(subject.SubjectType(), action.Name())
 	if rules == nil {
 		return false
@@ -42,7 +58,11 @@ func Cannot[S Subject](a *Ability, action ActionFor[S], subject S) bool {
 }
 
 // CanWithField checks if the subject is allowed to perform the action on a specific field.
+// It returns false (deny) if subject is nil.
 func CanWithField[S Subject](a *Ability, action ActionFor[S], subject S, field string) bool {
+	if isNilSubject(subject) {
+		return false
+	}
 	rules := a.index.get(subject.SubjectType(), action.Name())
 	if rules == nil {
 		return false

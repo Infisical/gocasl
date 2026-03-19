@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"log"
 	"github.com/akhilmhdh/gocasl"
 )
 
@@ -62,7 +63,10 @@ func main() {
 	gocasl.AddRule(builder, gocasl.Allow(ArticleReadAction).Where(gocasl.Cond{"AuthorID": gocasl.Var("user")}).Build())
 	gocasl.AddRule(builder, gocasl.Allow(ArticleUpdateAction).Where(gocasl.Cond{"AuthorID": gocasl.Var("user")}).Build())
 
-	ability := builder.Build()
+	ability, err := builder.Build()
+	if err != nil {
+		log.Fatal(err)
+	}
 
 	publicArticle := Article{ID: 1, AuthorID: 999, Published: true}
 	privateArticle := Article{ID: 2, AuthorID: 999, Published: false}
