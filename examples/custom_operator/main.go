@@ -2,7 +2,7 @@ package main
 
 import (
 	"fmt"
-	"github.com/akhilmhdh/gocasl"
+	"github.com/infisical/gocasl"
 	"log"
 )
 

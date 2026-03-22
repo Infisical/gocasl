@@ -13,7 +13,7 @@ Go CASL is an isomorphic authorization library for Golang, inspired by [CASL.js]
 ## Installation
 
 ```bash
-go get github.com/akhilmhdh/gocasl
+go get github.com/infisical/gocasl
 ```
 
 ## Quick Start
@@ -23,7 +23,7 @@ package main
 
 import (
 	"fmt"
-	"github.com/akhilmhdh/gocasl"
+	"github.com/infisical/gocasl"
 )
 
 // 1. Define your Subject

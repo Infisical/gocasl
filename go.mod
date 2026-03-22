@@ -1,3 +1,3 @@
-module github.com/akhilmhdh/gocasl
+module github.com/infisical/gocasl
 
 go 1.26

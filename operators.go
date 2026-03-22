@@ -5,7 +5,7 @@ import (
 	"reflect"
 	"regexp"
 
-	"github.com/akhilmhdh/gocasl/internal/compare"
+	"github.com/infisical/gocasl/internal/compare"
 )
 
 // DefaultOperators returns a fresh copy of the built-in operators.
