@@ -23,6 +23,14 @@ func TestStringOrSlice(t *testing.T) {
 	if len(s) != 2 || s[1] != "bar" {
 		t.Errorf("Expected [foo, bar], got %v", s)
 	}
+
+	// Test null
+	if err := json.Unmarshal([]byte(`null`), &s); err != nil {
+		t.Errorf("Failed to unmarshal null: %v", err)
+	}
+	if s != nil {
+		t.Errorf("Expected nil for null JSON, got %v", s)
+	}
 }
 
 type postSubject struct {

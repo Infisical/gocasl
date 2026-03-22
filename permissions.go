@@ -23,28 +23,19 @@ func Can[S Subject](a *Ability, action ActionFor[S], subject S) bool {
 		return false
 	}
 	rules := a.index.get(subject.SubjectType(), action.Name())
-	if rules == nil {
-		return false
-	}
 
+	// Forbid rules (Inverted) take precedence: a matching forbid with no fields
+	// immediately denies access, regardless of rule order.
 	granted := false
-
 	for _, rule := range rules {
-		// Evaluate condition
 		if !rule.match(subject) {
 			continue
 		}
-
 		if rule.rule.Inverted {
-			// Forbid rule
-			// If rule applies to specific fields, it doesn't forbid the whole resource.
-			// If rule has NO fields, it forbids the resource.
 			if len(rule.rule.Fields) == 0 {
 				return false
 			}
 		} else {
-			// Allow rule
-			// Any matching allow rule grants access (unless overridden by Forbid)
 			granted = true
 		}
 	}
@@ -64,26 +55,19 @@ func CanWithField[S Subject](a *Ability, action ActionFor[S], subject S, field s
 		return false
 	}
 	rules := a.index.get(subject.SubjectType(), action.Name())
-	if rules == nil {
-		return false
-	}
 
+	// Forbid rules (Inverted) take precedence: a matching forbid that covers
+	// this field (or all fields) immediately denies access, regardless of rule order.
 	granted := false
-
 	for _, rule := range rules {
 		if !rule.match(subject) {
 			continue
 		}
-
 		if rule.rule.Inverted {
-			// Forbid rule
-			// Blocks if it applies to all fields OR explicitly includes this field
 			if len(rule.rule.Fields) == 0 || slices.Contains(rule.rule.Fields, field) {
 				return false
 			}
 		} else {
-			// Allow rule
-			// Grants if it applies to all fields OR explicitly includes this field
 			if len(rule.rule.Fields) == 0 || slices.Contains(rule.rule.Fields, field) {
 				granted = true
 			}

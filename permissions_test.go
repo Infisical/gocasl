@@ -143,4 +143,42 @@ func TestPermissions(t *testing.T) {
 			t.Errorf("CanAny should be false")
 		}
 	})
+
+	t.Run("Priority Order Independence", func(t *testing.T) {
+		read := DefineAction[mockSubject]("read")
+		sub := mockSubject{ID: 1}
+
+		t.Run("Allow then Forbid", func(t *testing.T) {
+			b := NewAbility()
+			AddRule(b, Allow(read).Build())
+			AddRule(b, Forbid(read).Where(Cond{"ID": 1}).Build())
+			a, _ := b.Build()
+
+			if Can(a, read, sub) {
+				t.Errorf("Should forbid read (ID=1 matches forbid)")
+			}
+		})
+
+		t.Run("Forbid then Allow", func(t *testing.T) {
+			b := NewAbility()
+			AddRule(b, Forbid(read).Where(Cond{"ID": 1}).Build())
+			AddRule(b, Allow(read).Build())
+			a, _ := b.Build()
+
+			if Can(a, read, sub) {
+				t.Errorf("Should forbid read (ID=1 matches forbid)")
+			}
+		})
+
+		t.Run("Forbid everything then Allow", func(t *testing.T) {
+			b := NewAbility()
+			AddRule(b, Forbid(read).Build())
+			AddRule(b, Allow(read).Build())
+			a, _ := b.Build()
+
+			if Can(a, read, sub) {
+				t.Errorf("Should forbid read")
+			}
+		})
+	})
 }

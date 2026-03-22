@@ -2,6 +2,8 @@
 
 Go CASL is an isomorphic authorization library for Golang, inspired by [CASL.js](https://casl.js.org/). It provides a type-safe, flexible, and performant way to manage permissions in your Go applications.
 
+> A critical difference between js casl and GoCASL would be the `forbid` rule. The forbid rule takes priority irrespective of order.
+
 ## Features
 
 - **Type-Safe**: Leverages Go generics to ensure compile-time safety for actions and subjects.
@@ -46,10 +48,10 @@ func main() {
 
 	// 3. Define Rules
 	builder := gocasl.NewAbility()
-	
+
 	// Allow reading all posts
 	gocasl.AddRule(builder, gocasl.Allow(read).Build())
-	
+
 	// Allow updating own posts
 	gocasl.AddRule(builder, gocasl.Allow(update).Where(gocasl.Cond{"Owner": 123}).Build())
 
@@ -146,9 +148,8 @@ fields := gocasl.AllowedFields(ability, update, post)
 
 // Get all rules registered for a subject type (ignoring fields/conditions)
 // Useful for debugging or pre-filtering
-rules := gocasl.PossibleRulesFor(ability, read) 
+rules := gocasl.PossibleRulesFor(ability, read)
 ```
-
 
 Go CASL is designed for speed.
 

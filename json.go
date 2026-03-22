@@ -12,6 +12,10 @@ import (
 type StringOrSlice []string
 
 func (s *StringOrSlice) UnmarshalJSON(data []byte) error {
+	if string(data) == "null" {
+		*s = nil
+		return nil
+	}
 	var single string
 	if err := json.Unmarshal(data, &single); err == nil {
 		*s = []string{single}
