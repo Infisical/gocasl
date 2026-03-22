@@ -91,13 +91,31 @@ func UnpackRules(packed []PackedRule) []JSONRule {
 		}
 
 		// 1. Actions
-		if v, ok := get(0).(string); ok && v != "" {
-			r.Action = strings.Split(v, ",")
+		switch v := get(0).(type) {
+		case string:
+			if v != "" {
+				r.Action = strings.Split(v, ",")
+			}
+		case []any:
+			for _, item := range v {
+				if s, ok := item.(string); ok {
+					r.Action = append(r.Action, s)
+				}
+			}
 		}
 
 		// 2. Subjects
-		if v, ok := get(1).(string); ok && v != "" {
-			r.Subject = strings.Split(v, ",")
+		switch v := get(1).(type) {
+		case string:
+			if v != "" {
+				r.Subject = strings.Split(v, ",")
+			}
+		case []any:
+			for _, item := range v {
+				if s, ok := item.(string); ok {
+					r.Subject = append(r.Subject, s)
+				}
+			}
 		}
 
 		// 3. Conditions
@@ -112,17 +130,27 @@ func UnpackRules(packed []PackedRule) []JSONRule {
 
 		// 4. Inverted
 		if v := get(3); v != nil {
-			if val, ok := v.(int); ok && val == 1 {
-				r.Inverted = true
-			} else if val, ok := v.(float64); ok && val == 1.0 {
-				r.Inverted = true
+			switch val := v.(type) {
+			case bool:
+				r.Inverted = val
+			case int:
+				r.Inverted = val == 1
+			case float64:
+				r.Inverted = val == 1.0
 			}
 		}
 
 		// 5. Fields
-		if v := get(4); v != nil {
-			if s, ok := v.(string); ok && s != "" {
-				r.Fields = strings.Split(s, ",")
+		switch v := get(4).(type) {
+		case string:
+			if v != "" {
+				r.Fields = strings.Split(v, ",")
+			}
+		case []any:
+			for _, item := range v {
+				if s, ok := item.(string); ok {
+					r.Fields = append(r.Fields, s)
+				}
 			}
 		}
 

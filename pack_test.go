@@ -210,3 +210,182 @@ func slicesEqual(a, b []string) bool {
 	}
 	return reflect.DeepEqual(a, b)
 }
+
+// TestUnpackRulesFromNodeJS tests unpacking rules produced by Node.js CASL packRules,
+// where actions/subjects are arrays ([]any) and inverted is a bool.
+func TestUnpackRulesFromNodeJS(t *testing.T) {
+	tests := []struct {
+		name     string
+		packed   []PackedRule
+		expected []JSONRule
+	}{
+		{
+			name: "Array actions and subjects",
+			packed: []PackedRule{
+				{[]any{"read", "create"}, []any{"Post", "Comment"}},
+			},
+			expected: []JSONRule{
+				{Action: []string{"read", "create"}, Subject: []string{"Post", "Comment"}},
+			},
+		},
+		{
+			name: "Single-element arrays",
+			packed: []PackedRule{
+				{[]any{"read"}, []any{"Post"}},
+			},
+			expected: []JSONRule{
+				{Action: []string{"read"}, Subject: []string{"Post"}},
+			},
+		},
+		{
+			name: "Bool inverted true",
+			packed: []PackedRule{
+				{[]any{"delete"}, []any{"Post"}, 0, true},
+			},
+			expected: []JSONRule{
+				{Action: []string{"delete"}, Subject: []string{"Post"}, Inverted: true},
+			},
+		},
+		{
+			name: "Bool inverted false",
+			packed: []PackedRule{
+				{[]any{"read"}, []any{"Post"}, 0, false},
+			},
+			expected: []JSONRule{
+				{Action: []string{"read"}, Subject: []string{"Post"}, Inverted: false},
+			},
+		},
+		{
+			name: "Array fields",
+			packed: []PackedRule{
+				{[]any{"update"}, []any{"Post"}, 0, 0, []any{"title", "body"}},
+			},
+			expected: []JSONRule{
+				{Action: []string{"update"}, Subject: []string{"Post"}, Fields: []string{"title", "body"}},
+			},
+		},
+		{
+			name: "Full Node.js rule with arrays and bool",
+			packed: []PackedRule{
+				{[]any{"manage"}, []any{"all"}, map[string]any{"orgId": float64(1)}, true, []any{"id"}, "Root"},
+			},
+			expected: []JSONRule{
+				{
+					Action:     []string{"manage"},
+					Subject:    []string{"all"},
+					Conditions: Cond{"orgId": float64(1)},
+					Inverted:   true,
+					Fields:     []string{"id"},
+					Reason:     "Root",
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			unpacked := UnpackRules(tt.packed)
+			if len(unpacked) != len(tt.expected) {
+				t.Fatalf("length = %d, want %d", len(unpacked), len(tt.expected))
+			}
+			for i := range unpacked {
+				if !rulesEqual(unpacked[i], tt.expected[i]) {
+					t.Errorf("rule[%d] = %+v, want %+v", i, unpacked[i], tt.expected[i])
+				}
+			}
+		})
+	}
+}
+
+// TestUnpackRulesFromJSON tests the full JSON unmarshal -> unpack path,
+// simulating data received from a Node.js CASL service.
+func TestUnpackRulesFromJSON(t *testing.T) {
+	tests := []struct {
+		name     string
+		json     string
+		expected []JSONRule
+	}{
+		{
+			name: "Node.js format with arrays",
+			json: `[["read","Post"],["update","Comment"]]`,
+			expected: []JSONRule{
+				{Action: []string{"read"}, Subject: []string{"Post"}},
+				{Action: []string{"update"}, Subject: []string{"Comment"}},
+			},
+		},
+		{
+			name: "Node.js format with array actions/subjects",
+			json: `[[["read","create"],["Post","Comment"]]]`,
+			expected: []JSONRule{
+				{Action: []string{"read", "create"}, Subject: []string{"Post", "Comment"}},
+			},
+		},
+		{
+			name: "Node.js inverted as bool true",
+			json: `[["delete","Post",0,true]]`,
+			expected: []JSONRule{
+				{Action: []string{"delete"}, Subject: []string{"Post"}, Inverted: true},
+			},
+		},
+		{
+			name: "Go format with comma-joined strings",
+			json: `[["read,create","Post,Comment"]]`,
+			expected: []JSONRule{
+				{Action: []string{"read", "create"}, Subject: []string{"Post", "Comment"}},
+			},
+		},
+		{
+			name: "Inverted as number 1 (via JSON)",
+			json: `[["delete","Post",0,1]]`,
+			expected: []JSONRule{
+				{Action: []string{"delete"}, Subject: []string{"Post"}, Inverted: true},
+			},
+		},
+		{
+			name: "Full rule from Node.js",
+			json: `[[["manage"],["all"],{"orgId":1},true,["id"],"Root"]]`,
+			expected: []JSONRule{
+				{
+					Action:     []string{"manage"},
+					Subject:    []string{"all"},
+					Conditions: Cond{"orgId": float64(1)},
+					Inverted:   true,
+					Fields:     []string{"id"},
+					Reason:     "Root",
+				},
+			},
+		},
+		{
+			name: "Mixed rules from different sources",
+			json: `[["read","Post"],[["read","create"],["Post","Comment"],0,true]]`,
+			expected: []JSONRule{
+				{Action: []string{"read"}, Subject: []string{"Post"}},
+				{Action: []string{"read", "create"}, Subject: []string{"Post", "Comment"}, Inverted: true},
+			},
+		},
+		{
+			name: "Empty packed rules",
+			json: `[]`,
+			expected: []JSONRule{},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var packed []PackedRule
+			if err := json.Unmarshal([]byte(tt.json), &packed); err != nil {
+				t.Fatalf("failed to unmarshal JSON: %v", err)
+			}
+
+			unpacked := UnpackRules(packed)
+			if len(unpacked) != len(tt.expected) {
+				t.Fatalf("length = %d, want %d", len(unpacked), len(tt.expected))
+			}
+			for i := range unpacked {
+				if !rulesEqual(unpacked[i], tt.expected[i]) {
+					t.Errorf("rule[%d] = %+v, want %+v", i, unpacked[i], tt.expected[i])
+				}
+			}
+		})
+	}
+}
