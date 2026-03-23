@@ -18,7 +18,7 @@ func TestEvaluator(t *testing.T) {
 		"Admin":  true,
 	}
 
-	compiler := newCompiler(defaultOperators(), vars)
+	compiler := newCompiler(defaultFieldOps(), defaultCondOps(), vars)
 
 	tests := []struct {
 		name string

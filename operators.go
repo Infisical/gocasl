@@ -1,67 +1,53 @@
 package gocasl
 
 import (
-	"maps"
 	"reflect"
 	"regexp"
 
 	"github.com/infisical/gocasl/internal/compare"
 )
 
-// DefaultOperators returns a fresh copy of the built-in operators.
+// DefaultFieldOps returns a fresh copy of the built-in field operators.
 // Each call returns an independent copy that is safe to modify.
-func DefaultOperators() Operators {
-	return defaultOperators()
+func DefaultFieldOps() FieldOps {
+	return defaultFieldOps()
 }
 
-func defaultOperators() Operators {
-	return Operators{
-		"$eq":       opEq,
-		"$ne":       opNe,
-		"$gt":       opGt,
-		"$gte":      opGte,
-		"$lt":       opLt,
-		"$lte":      opLte,
-		"$in":       opIn,
-		"$nin":      opNin,
-		"$regex":    opRegex,
-		"$contains": opContains,
-		"$exists":   opExists,
-		"$size":     opSize,
+// DefaultCondOps returns a fresh copy of the built-in condition operators.
+// Each call returns an independent copy that is safe to modify.
+func DefaultCondOps() CondOps {
+	return defaultCondOps()
+}
+
+func defaultFieldOps() FieldOps {
+	return FieldOps{
+		"$eq":        Compare(opEq),
+		"$ne":        Compare(opNe),
+		"$gt":        Compare(opGt),
+		"$gte":       Compare(opGte),
+		"$lt":        Compare(opLt),
+		"$lte":       Compare(opLte),
+		"$in":        Compare(opIn),
+		"$nin":       Compare(opNin),
+		"$regex":     Compare(opRegex),
+		"$contains":  Compare(opContains),
+		"$exists":    Compare(opExists),
+		"$size":      Compare(opSize),
+		"$elemMatch": opElemMatchFieldOp,
+		"$all":       opAllFieldOp,
 	}
 }
 
-// Clone returns a shallow copy of the operators map.
-func (o Operators) Clone() Operators {
-	newOps := make(Operators, len(o))
-	maps.Copy(newOps, o)
-	return newOps
-}
-
-// With adds or replaces an operator.
-func (o Operators) With(name string, fn OperatorFunc) Operators {
-	newOps := o.Clone()
-	newOps[name] = fn
-	return newOps
-}
-
-// Without removes operators by name.
-func (o Operators) Without(names ...string) Operators {
-	newOps := o.Clone()
-	for _, name := range names {
-		delete(newOps, name)
+func defaultCondOps() CondOps {
+	return CondOps{
+		"$and": opAndCondOp,
+		"$or":  opOrCondOp,
+		"$not": opNotCondOp,
 	}
-	return newOps
 }
 
-// WithAll merges another set of operators into this one.
-func (o Operators) WithAll(other Operators) Operators {
-	newOps := o.Clone()
-	maps.Copy(newOps, other)
-	return newOps
-}
-
-// --- Comparison Operators ---
+// --- Comparison Functions ---
+// These are pure comparison functions used with Compare() wrapper.
 
 func opEq(val any, constraint any) bool {
 	return compare.Equal(val, constraint)
@@ -89,10 +75,9 @@ func opLte(val any, constraint any) bool {
 	return res == -1 || res == 0
 }
 
-// --- Array Operators ---
+// --- Array Comparison Functions ---
 
 func opIn(val any, constraint any) bool {
-	// constraint must be a slice/array
 	return compare.Contains(constraint, val)
 }
 
@@ -100,7 +85,7 @@ func opNin(val any, constraint any) bool {
 	return !compare.Contains(constraint, val)
 }
 
-// --- String Operators ---
+// --- String Comparison Functions ---
 
 func opRegex(val any, constraint any) bool {
 	valStr, ok1 := val.(string)
@@ -116,7 +101,7 @@ func opContains(val any, constraint any) bool {
 	return compare.Contains(val, constraint)
 }
 
-// --- Other Operators ---
+// --- Other Comparison Functions ---
 
 func opExists(val any, constraint any) bool {
 	shouldExist, ok := constraint.(bool)
@@ -132,17 +117,14 @@ func opExists(val any, constraint any) bool {
 func opSize(val any, constraint any) bool {
 	size, ok := constraint.(int)
 	if !ok {
-		// try float/int64 if json decoding messes up types
 		valC := reflect.ValueOf(constraint)
-		if compare.Equal(constraint, int(0)) { // simple check
-			// fall back to reflection if needed, but int is expected from DSL
+		if compare.Equal(constraint, int(0)) {
 			if valC.CanConvert(reflect.TypeFor[int]()) {
 				size = int(valC.Convert(reflect.TypeFor[int]()).Int())
 			} else {
 				return false
 			}
 		} else {
-			// This path handles if constraint came in as float64 (common in JSON)
 			if f, ok := constraint.(float64); ok {
 				size = int(f)
 			} else {
@@ -159,6 +141,138 @@ func opSize(val any, constraint any) bool {
 	return false
 }
 
+// --- Compound Field Operators ---
+
+// opElemMatchFieldOp checks if any element in an array field matches all the sub-conditions.
+func opElemMatchFieldOp(cc *CompileCtx, field string, constraint any) Condition {
+	subCond := cc.Compile(toCond(constraint))
+
+	return func(s Subject) bool {
+		fieldVal := s.GetField(field)
+		return arrayAny(fieldVal, subCond)
+	}
+}
+
+// opAllFieldOp checks if every element in an array field matches all the sub-conditions.
+func opAllFieldOp(cc *CompileCtx, field string, constraint any) Condition {
+	subCond := cc.Compile(toCond(constraint))
+
+	return func(s Subject) bool {
+		fieldVal := s.GetField(field)
+		return arrayAll(fieldVal, subCond)
+	}
+}
+
+// arrayAny returns true if any element in the slice/array satisfies the condition.
+func arrayAny(fieldVal any, subCond Condition) bool {
+	rv := reflect.ValueOf(fieldVal)
+	if rv.Kind() != reflect.Slice && rv.Kind() != reflect.Array {
+		return false
+	}
+	for i := 0; i < rv.Len(); i++ {
+		elem := rv.Index(i).Interface()
+		if subj := toSubject(elem); subj != nil && subCond(subj) {
+			return true
+		}
+	}
+	return false
+}
+
+// arrayAll returns true if every element in the slice/array satisfies the condition.
+// Returns false for empty or non-array values.
+func arrayAll(fieldVal any, subCond Condition) bool {
+	rv := reflect.ValueOf(fieldVal)
+	if rv.Kind() != reflect.Slice && rv.Kind() != reflect.Array {
+		return false
+	}
+	if rv.Len() == 0 {
+		return false
+	}
+	for i := 0; i < rv.Len(); i++ {
+		elem := rv.Index(i).Interface()
+		if subj := toSubject(elem); subj == nil || !subCond(subj) {
+			return false
+		}
+	}
+	return true
+}
+
+// toSubject wraps a value as a Subject for sub-condition evaluation.
+func toSubject(elem any) Subject {
+	if subj, ok := elem.(Subject); ok {
+		return subj
+	}
+	if m, ok := elem.(map[string]any); ok {
+		return MapSubject(m)
+	}
+	return nil
+}
+
+// toCond converts a value to a Cond for sub-condition compilation.
+func toCond(val any) Cond {
+	switch v := val.(type) {
+	case Cond:
+		return v
+	case map[string]any:
+		return Cond(v)
+	}
+	return nil
+}
+
+// --- Condition-Level Operators ---
+
+func opAndCondOp(cc *CompileCtx, value any) Condition {
+	list, ok := value.([]any)
+	if !ok {
+		return func(s Subject) bool { return false }
+	}
+
+	var conds []Condition
+	for _, item := range list {
+		conds = append(conds, cc.Compile(toCond(item)))
+	}
+
+	return func(s Subject) bool {
+		for _, c := range conds {
+			if !c(s) {
+				return false
+			}
+		}
+		return true
+	}
+}
+
+func opOrCondOp(cc *CompileCtx, value any) Condition {
+	list, ok := value.([]any)
+	if !ok {
+		return func(s Subject) bool { return false }
+	}
+
+	var conds []Condition
+	for _, item := range list {
+		conds = append(conds, cc.Compile(toCond(item)))
+	}
+
+	return func(s Subject) bool {
+		if len(conds) == 0 {
+			return false
+		}
+		for _, c := range conds {
+			if c(s) {
+				return true
+			}
+		}
+		return false
+	}
+}
+
+func opNotCondOp(cc *CompileCtx, value any) Condition {
+	cond := cc.Compile(toCond(value))
+	return func(s Subject) bool {
+		return !cond(s)
+	}
+}
+
 // --- DSL Functions ---
 
 func Eq(val any) Op           { return Op{"$eq": val} }
@@ -173,6 +287,12 @@ func Regex(pattern string) Op { return Op{"$regex": pattern} }
 func Contains(val any) Op     { return Op{"$contains": val} }
 func Exists(exists bool) Op   { return Op{"$exists": exists} }
 func Size(size int) Op        { return Op{"$size": size} }
+
+// ElemMatch checks if any element in an array field matches all the sub-conditions.
+func ElemMatch(cond Cond) Op { return Op{"$elemMatch": cond} }
+
+// All checks if every element in an array field matches all the sub-conditions.
+func All(cond Cond) Op { return Op{"$all": cond} }
 
 // StartsWith is a convenience DSL that uses Regex
 func StartsWith(prefix string) Op {

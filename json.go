@@ -44,8 +44,10 @@ const DefaultMaxJSONSize = 1 << 20
 
 // LoadOptions configures the JSON loading process.
 type LoadOptions struct {
-	// Operators to use in the Ability. Defaults to DefaultOperators.
-	Operators Operators
+	// FieldOps to use in the Ability. Defaults to DefaultFieldOps.
+	FieldOps FieldOps
+	// CondOps to use in the Ability. Defaults to DefaultCondOps.
+	CondOps CondOps
 	// Variables for template resolution.
 	Vars map[string]any
 	// MaxSize limits the maximum bytes read from a Reader.
@@ -61,8 +63,11 @@ func LoadFromJSON(data []byte, opts LoadOptions) (*Ability, error) {
 	}
 
 	builder := NewAbility()
-	if opts.Operators != nil {
-		builder.WithOperators(opts.Operators)
+	if opts.FieldOps != nil {
+		builder.WithFieldOps(opts.FieldOps)
+	}
+	if opts.CondOps != nil {
+		builder.WithCondOps(opts.CondOps)
 	}
 	if opts.Vars != nil {
 		builder.WithVars(opts.Vars)

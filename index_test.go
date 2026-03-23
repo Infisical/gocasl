@@ -5,7 +5,7 @@ import (
 )
 
 func TestRuleIndex(t *testing.T) {
-	compiler := newCompiler(defaultOperators(), nil)
+	compiler := newCompiler(defaultFieldOps(), defaultCondOps(), nil)
 
 	rules := []rawRule{
 		{
@@ -54,7 +54,7 @@ func TestLazyCompilation(t *testing.T) {
 	// We can't easily mock the compiler inside standard package test without exposing internals.
 	// But we can check if condition is nil before match and not nil after.
 
-	compiler := newCompiler(defaultOperators(), nil)
+	compiler := newCompiler(defaultFieldOps(), defaultCondOps(), nil)
 	r := rawRule{
 		SubjectType: "Post",
 		Action:      "read",

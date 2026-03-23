@@ -5,16 +5,16 @@ import (
 	"testing"
 )
 
-func TestOperatorsMethods(t *testing.T) {
-	ops := defaultOperators().Clone()
+func TestFieldOpsMethods(t *testing.T) {
+	ops := defaultFieldOps().Clone()
 
 	// Test Clone
-	if len(ops) != len(defaultOperators()) {
+	if len(ops) != len(defaultFieldOps()) {
 		t.Errorf("Clone failed size check")
 	}
 
 	// Test With
-	ops = ops.With("$custom", func(a, b any) bool { return true })
+	ops = ops.With("$custom", Compare(func(a, b any) bool { return true }))
 	if _, ok := ops["$custom"]; !ok {
 		t.Errorf("With failed to add operator")
 	}
@@ -29,14 +29,47 @@ func TestOperatorsMethods(t *testing.T) {
 	}
 
 	// Test WithAll
-	ops2 := Operators{"$new": func(a, b any) bool { return true }}
+	ops2 := FieldOps{"$new": Compare(func(a, b any) bool { return true })}
 	ops = ops.WithAll(ops2)
 	if _, ok := ops["$new"]; !ok {
 		t.Errorf("WithAll failed to add $new")
 	}
 }
 
+func TestCondOpsMethods(t *testing.T) {
+	ops := defaultCondOps().Clone()
+
+	if len(ops) != len(defaultCondOps()) {
+		t.Errorf("Clone failed size check")
+	}
+
+	ops = ops.With("$custom", func(cc *CompileCtx, value any) Condition {
+		return func(s Subject) bool { return true }
+	})
+	if _, ok := ops["$custom"]; !ok {
+		t.Errorf("With failed to add cond operator")
+	}
+
+	ops = ops.Without("$custom")
+	if _, ok := ops["$custom"]; ok {
+		t.Errorf("Without failed to remove $custom")
+	}
+}
+
+// helper to evaluate a comparison function against field/constraint values
+func evalFieldOp(op FieldOp, fieldVal, constraint any) bool {
+	cc := &CompileCtx{
+		Compile: func(c Cond) Condition { return func(s Subject) bool { return true } },
+		Resolve: func(v any) any { return v },
+	}
+	cond := op(cc, "testField", constraint)
+	sub := MapSubject{"testField": fieldVal}
+	return cond(sub)
+}
+
 func TestComparisonOperators(t *testing.T) {
+	ops := defaultFieldOps()
+
 	tests := []struct {
 		op   string
 		val  any
@@ -74,14 +107,16 @@ func TestComparisonOperators(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		fn := defaultOperators()[tt.op]
-		if got := fn(tt.val, tt.cons); got != tt.want {
+		fn := ops[tt.op]
+		if got := evalFieldOp(fn, tt.val, tt.cons); got != tt.want {
 			t.Errorf("%s(%v, %v) = %v; want %v", tt.op, tt.val, tt.cons, got, tt.want)
 		}
 	}
 }
 
 func TestArrayOperators(t *testing.T) {
+	ops := defaultFieldOps()
+
 	tests := []struct {
 		op   string
 		val  any
@@ -99,14 +134,16 @@ func TestArrayOperators(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		fn := defaultOperators()[tt.op]
-		if got := fn(tt.val, tt.cons); got != tt.want {
+		fn := ops[tt.op]
+		if got := evalFieldOp(fn, tt.val, tt.cons); got != tt.want {
 			t.Errorf("%s(%v, %v) = %v; want %v", tt.op, tt.val, tt.cons, got, tt.want)
 		}
 	}
 }
 
 func TestStringOperators(t *testing.T) {
+	ops := defaultFieldOps()
+
 	tests := []struct {
 		op   string
 		val  any
@@ -125,14 +162,16 @@ func TestStringOperators(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		fn := defaultOperators()[tt.op]
-		if got := fn(tt.val, tt.cons); got != tt.want {
+		fn := ops[tt.op]
+		if got := evalFieldOp(fn, tt.val, tt.cons); got != tt.want {
 			t.Errorf("%s(%v, %v) = %v; want %v", tt.op, tt.val, tt.cons, got, tt.want)
 		}
 	}
 }
 
 func TestOtherOperators(t *testing.T) {
+	ops := defaultFieldOps()
+
 	tests := []struct {
 		op   string
 		val  any
@@ -152,8 +191,8 @@ func TestOtherOperators(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		fn := defaultOperators()[tt.op]
-		if got := fn(tt.val, tt.cons); got != tt.want {
+		fn := ops[tt.op]
+		if got := evalFieldOp(fn, tt.val, tt.cons); got != tt.want {
 			t.Errorf("%s(%v, %v) = %v; want %v", tt.op, tt.val, tt.cons, got, tt.want)
 		}
 	}
@@ -182,6 +221,20 @@ func TestDSL(t *testing.T) {
 	check("Exists", Exists(true), "$exists", true)
 	check("Size", Size(5), "$size", 5)
 
+	// Test ElemMatch
+	em := ElemMatch(Cond{"status": "active"})
+	if val, ok := em["$elemMatch"]; !ok {
+		t.Errorf("ElemMatch missing key $elemMatch")
+	} else if !reflect.DeepEqual(val, Cond{"status": "active"}) {
+		t.Errorf("ElemMatch value mismatch: %v", val)
+	}
+
+	// Test All
+	all := All(Cond{"score": Gte(50)})
+	if _, ok := all["$all"]; !ok {
+		t.Errorf("All missing key $all")
+	}
+
 	// Test StartsWith / EndsWith
 	sw := StartsWith("foo")
 	if val, ok := sw["$regex"]; !ok || val != "^foo" {
@@ -191,5 +244,135 @@ func TestDSL(t *testing.T) {
 	ew := EndsWith("bar")
 	if val, ok := ew["$regex"]; !ok || val != "bar$" {
 		t.Errorf("EndsWith failed: %v", ew)
+	}
+}
+
+func TestElemMatchOperator(t *testing.T) {
+	// Subject with array of map elements
+	type Item struct {
+		Category string
+		Score    int
+	}
+
+	type Doc struct {
+		Items []map[string]any
+	}
+
+	sub := MapSubject{
+		"items": []map[string]any{
+			{"category": "sports", "score": 90},
+			{"category": "tech", "score": 85},
+			{"category": "tech", "score": 50},
+		},
+	}
+
+	compiler := newCompiler(nil, nil, nil)
+
+	tests := []struct {
+		name string
+		cond Cond
+		want bool
+	}{
+		{
+			name: "elemMatch matches element with all conditions",
+			cond: Cond{"items": ElemMatch(Cond{
+				"category": "tech",
+				"score":    Op{"$gte": 80},
+			})},
+			want: true,
+		},
+		{
+			name: "elemMatch fails when no single element matches all",
+			cond: Cond{"items": ElemMatch(Cond{
+				"category": "sports",
+				"score":    Op{"$lt": 50},
+			})},
+			want: false,
+		},
+		{
+			name: "elemMatch with simple equality",
+			cond: Cond{"items": ElemMatch(Cond{
+				"category": "tech",
+			})},
+			want: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			condFunc := compiler.compile(tt.cond)
+			if got := condFunc(sub); got != tt.want {
+				t.Errorf("got %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestAllOperator(t *testing.T) {
+	sub := MapSubject{
+		"scores": []map[string]any{
+			{"value": 80, "passing": true},
+			{"value": 90, "passing": true},
+			{"value": 85, "passing": true},
+		},
+	}
+
+	subWithFailing := MapSubject{
+		"scores": []map[string]any{
+			{"value": 80, "passing": true},
+			{"value": 30, "passing": false},
+			{"value": 85, "passing": true},
+		},
+	}
+
+	compiler := newCompiler(nil, nil, nil)
+
+	tests := []struct {
+		name    string
+		subject Subject
+		cond    Cond
+		want    bool
+	}{
+		{
+			name:    "all elements match",
+			subject: sub,
+			cond: Cond{"scores": All(Cond{
+				"passing": true,
+			})},
+			want: true,
+		},
+		{
+			name:    "not all elements match",
+			subject: subWithFailing,
+			cond: Cond{"scores": All(Cond{
+				"passing": true,
+			})},
+			want: false,
+		},
+		{
+			name:    "all with operator condition",
+			subject: sub,
+			cond: Cond{"scores": All(Cond{
+				"value": Op{"$gte": 75},
+			})},
+			want: true,
+		},
+		{
+			name:    "all fails when one element doesn't match operator",
+			subject: subWithFailing,
+			cond: Cond{"scores": All(Cond{
+				"value": Op{"$gte": 75},
+			})},
+			want: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			condFunc := compiler.compile(tt.cond)
+			if got := condFunc(tt.subject); got != tt.want {
+				t.Errorf("got %v, want %v", got, tt.want)
+			}
+		})
 	}
 }

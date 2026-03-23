@@ -6,21 +6,31 @@ import (
 	"strings"
 )
 
-// Condition is a compiled function that evaluates a subject against a set of rules.
-type Condition func(subject Subject) bool
-
 type condCompiler struct {
-	ops  Operators
-	vars map[string]any
+	fieldOps FieldOps
+	condOps  CondOps
+	vars     map[string]any
 }
 
-func newCompiler(ops Operators, vars map[string]any) *condCompiler {
-	if ops == nil {
-		ops = defaultOperators()
+func newCompiler(fieldOps FieldOps, condOps CondOps, vars map[string]any) *condCompiler {
+	if fieldOps == nil {
+		fieldOps = defaultFieldOps()
+	}
+	if condOps == nil {
+		condOps = defaultCondOps()
 	}
 	return &condCompiler{
-		ops:  ops,
-		vars: vars,
+		fieldOps: fieldOps,
+		condOps:  condOps,
+		vars:     vars,
+	}
+}
+
+// ctx returns a CompileCtx that exposes the compiler's capabilities to operators.
+func (c *condCompiler) ctx() *CompileCtx {
+	return &CompileCtx{
+		Compile: c.compile,
+		Resolve: c.resolveValue,
 	}
 }
 
@@ -42,40 +52,40 @@ func (c *condCompiler) validate(rules []rawRule) error {
 
 func (c *condCompiler) validateCond(cond Cond, path string, errs *[]string) {
 	for key, value := range cond {
-		switch key {
-		case "$and":
-			if list, ok := value.([]any); ok {
-				for i, item := range list {
-					childPath := fmt.Sprintf("%s.$and[%d]", path, i)
-					if condMap, ok := item.(Cond); ok {
-						c.validateCond(condMap, childPath, errs)
-					} else if mapItem, ok := item.(map[string]any); ok {
-						c.validateCond(Cond(mapItem), childPath, errs)
-					}
-				}
-			}
-		case "$or":
-			if list, ok := value.([]any); ok {
-				for i, item := range list {
-					childPath := fmt.Sprintf("%s.$or[%d]", path, i)
-					if condMap, ok := item.(Cond); ok {
-						c.validateCond(condMap, childPath, errs)
-					} else if mapItem, ok := item.(map[string]any); ok {
-						c.validateCond(Cond(mapItem), childPath, errs)
-					}
-				}
-			}
-		case "$not":
-			childPath := fmt.Sprintf("%s.$not", path)
-			if condMap, ok := value.(Cond); ok {
-				c.validateCond(condMap, childPath, errs)
-			} else if mapItem, ok := value.(map[string]any); ok {
-				c.validateCond(Cond(mapItem), childPath, errs)
-			}
-		default:
+		if _, ok := c.condOps[key]; ok {
+			// Condition-level operator — validate its children
+			c.validateCondOpValue(key, value, path, errs)
+		} else {
 			// Field condition — validate value for VarRefs and operator names
 			c.validateValue(value, fmt.Sprintf("%s.%s", path, key), errs)
 		}
+	}
+}
+
+func (c *condCompiler) validateCondOpValue(opName string, value any, path string, errs *[]string) {
+	childPath := fmt.Sprintf("%s.%s", path, opName)
+
+	switch opName {
+	case "$and", "$or":
+		if list, ok := value.([]any); ok {
+			for i, item := range list {
+				itemPath := fmt.Sprintf("%s[%d]", childPath, i)
+				if condMap, ok := item.(Cond); ok {
+					c.validateCond(condMap, itemPath, errs)
+				} else if mapItem, ok := item.(map[string]any); ok {
+					c.validateCond(Cond(mapItem), itemPath, errs)
+				}
+			}
+		}
+	case "$not":
+		if condMap, ok := value.(Cond); ok {
+			c.validateCond(condMap, childPath, errs)
+		} else if mapItem, ok := value.(map[string]any); ok {
+			c.validateCond(Cond(mapItem), childPath, errs)
+		}
+	default:
+		// For custom CondOps, validate the value generically
+		c.validateValue(value, childPath, errs)
 	}
 }
 
@@ -121,11 +131,22 @@ func (c *condCompiler) validateOperatorMap(ops map[string]any, path string, errs
 	sort.Strings(keys)
 
 	for _, opName := range keys {
-		if _, ok := c.ops[opName]; !ok {
+		if _, ok := c.fieldOps[opName]; !ok {
 			*errs = append(*errs, fmt.Sprintf("%s: unknown operator %q", path, opName))
 		}
-		// Also validate the operator's constraint value for VarRefs
-		c.validateValue(ops[opName], fmt.Sprintf("%s.%s", path, opName), errs)
+		// For $elemMatch and $all, validate constraint as nested condition
+		if opName == "$elemMatch" || opName == "$all" {
+			constraint := ops[opName]
+			childPath := fmt.Sprintf("%s.%s", path, opName)
+			if condMap, ok := constraint.(Cond); ok {
+				c.validateCond(condMap, childPath, errs)
+			} else if mapItem, ok := constraint.(map[string]any); ok {
+				c.validateCond(Cond(mapItem), childPath, errs)
+			}
+		} else {
+			// Validate the operator's constraint value for VarRefs
+			c.validateValue(ops[opName], fmt.Sprintf("%s.%s", path, opName), errs)
+		}
 	}
 }
 
@@ -148,14 +169,10 @@ func (c *condCompiler) compile(cond Cond) Condition {
 	var checks []Condition
 
 	for key, value := range cond {
-		switch key {
-		case "$and":
-			checks = append(checks, c.compileAnd(value))
-		case "$or":
-			checks = append(checks, c.compileOr(value))
-		case "$not":
-			checks = append(checks, c.compileNot(value))
-		default:
+		if condOp, ok := c.condOps[key]; ok {
+			// Condition-level operator ($and, $or, $not, or custom)
+			checks = append(checks, condOp(c.ctx(), value))
+		} else {
 			// Field condition
 			checks = append(checks, c.compileField(key, value))
 		}
@@ -172,87 +189,11 @@ func (c *condCompiler) compile(cond Cond) Condition {
 	}
 }
 
-func (c *condCompiler) compileAnd(val any) Condition {
-	list, ok := val.([]any)
-	if !ok {
-		// Try casting to []Cond if possible, but map[string]any is messy in Go
-		// Actually the helpers create []any.
-		return func(s Subject) bool { return false }
-	}
-
-	var conditions []Condition
-	for _, item := range list {
-		if condMap, ok := item.(Cond); ok {
-			conditions = append(conditions, c.compile(condMap))
-		} else if mapItem, ok := item.(map[string]any); ok {
-			conditions = append(conditions, c.compile(Cond(mapItem)))
-		}
-	}
-
-	return func(subject Subject) bool {
-		for _, cond := range conditions {
-			if !cond(subject) {
-				return false
-			}
-		}
-		return true
-	}
-}
-
-func (c *condCompiler) compileOr(val any) Condition {
-	list, ok := val.([]any)
-	if !ok {
-		return func(s Subject) bool { return false }
-	}
-
-	var conditions []Condition
-	for _, item := range list {
-		if condMap, ok := item.(Cond); ok {
-			conditions = append(conditions, c.compile(condMap))
-		} else if mapItem, ok := item.(map[string]any); ok {
-			conditions = append(conditions, c.compile(Cond(mapItem)))
-		}
-	}
-
-	return func(subject Subject) bool {
-		if len(conditions) == 0 {
-			return false // OR with empty list is false? Or true? Usually false.
-		}
-		for _, cond := range conditions {
-			if cond(subject) {
-				return true
-			}
-		}
-		return false
-	}
-}
-
-func (c *condCompiler) compileNot(val any) Condition {
-	var cond Condition
-	if condMap, ok := val.(Cond); ok {
-		cond = c.compile(condMap)
-	} else if mapItem, ok := val.(map[string]any); ok {
-		cond = c.compile(Cond(mapItem))
-	} else {
-		return func(s Subject) bool { return false }
-	}
-
-	return func(subject Subject) bool {
-		return !cond(subject)
-	}
-}
-
 func (c *condCompiler) compileField(field string, value any) Condition {
-	// Value can be:
-	// 1. A map of operators (Op) -> {"$gt": 10}
-	// 2. A bare value -> 10 (implicit $eq)
-	// 3. A VarRef -> Var("ID") (implicit $eq with resolved value)
-
 	resolvedValue := c.resolveValue(value)
 
 	// Check if it's an operator map
 	if opMap, ok := resolvedValue.(map[string]any); ok {
-		// Check if it looks like operators (keys start with $)
 		isOp := true
 		for k := range opMap {
 			if len(k) == 0 || k[0] != '$' {
@@ -260,21 +201,12 @@ func (c *condCompiler) compileField(field string, value any) Condition {
 				break
 			}
 		}
-
-		// If it's a mix or doesn't start with $, treat as direct comparison (nested object or map equality)
-		// But in CASL, operators must start with $.
-		// If isOp is true, compile operators.
 		if isOp {
 			return c.compileOperators(field, opMap)
 		}
 	} else if opMap, ok := resolvedValue.(Op); ok {
 		return c.compileOperators(field, map[string]any(opMap))
 	} else if opMap, ok := resolvedValue.(Cond); ok {
-		// Could be nested condition on a field?
-		// e.g. "address": {"city": "London"} -> field "address" value is object, check equality?
-		// Or "address": {"$and": ...} ?
-		// For now, treat as direct value unless keys are operators.
-		// Use same logic as map[string]any above.
 		isOp := true
 		for k := range opMap {
 			if len(k) == 0 || k[0] != '$' {
@@ -288,15 +220,8 @@ func (c *condCompiler) compileField(field string, value any) Condition {
 	}
 
 	// Implicit $eq
-	// If resolvedValue contains VarRef (not resolved earlier because it wasn't top level?), handle it?
-	// resolveValue handles top level VarRef.
-
-	// Create $eq check
-	opEqFunc := c.ops["$eq"]
-	return func(subject Subject) bool {
-		fieldVal := subject.GetField(field)
-		return opEqFunc(fieldVal, resolvedValue)
-	}
+	eqOp := c.fieldOps["$eq"]
+	return eqOp(c.ctx(), field, resolvedValue)
 }
 
 func (c *condCompiler) compileOperators(field string, ops map[string]any) Condition {
@@ -307,28 +232,22 @@ func (c *condCompiler) compileOperators(field string, ops map[string]any) Condit
 	}
 	sort.Strings(keys)
 
-	var checks []func(any) bool
+	var checks []Condition
 
 	for _, opName := range keys {
 		opVal := ops[opName]
-		opFunc, ok := c.ops[opName]
+		fieldOp, ok := c.fieldOps[opName]
 		if !ok {
 			// Validated at Build() time, so this should not happen.
-			// Fail safe: condition fails.
 			return func(s Subject) bool { return false }
 		}
 
-		resolvedOpVal := c.resolveValue(opVal)
-
-		checks = append(checks, func(fieldVal any) bool {
-			return opFunc(fieldVal, resolvedOpVal)
-		})
+		checks = append(checks, fieldOp(c.ctx(), field, opVal))
 	}
 
 	return func(subject Subject) bool {
-		fieldVal := subject.GetField(field)
 		for _, check := range checks {
-			if !check(fieldVal) {
+			if !check(subject) {
 				return false
 			}
 		}
@@ -341,8 +260,6 @@ func (c *condCompiler) resolveValue(val any) any {
 		if resolved, found := c.vars[string(v)]; found {
 			return resolved
 		}
-		// Validated at Build() time, so this should not happen.
-		// Fail-secure: use a sentinel that will never match any field value.
 		return unresolvedVarSentinel{}
 	}
 	return val

@@ -2,9 +2,10 @@ package gocasl
 
 // AbilityBuilder builds an Ability instance.
 type AbilityBuilder struct {
-	ops   Operators
-	vars  map[string]any
-	rules []rawRule
+	fieldOps FieldOps
+	condOps  CondOps
+	vars     map[string]any
+	rules    []rawRule
 }
 
 // rawRule is a type-erased representation of a Rule.
@@ -20,13 +21,20 @@ type rawRule struct {
 // NewAbility creates a new AbilityBuilder with default operators.
 func NewAbility() *AbilityBuilder {
 	return &AbilityBuilder{
-		ops: defaultOperators(),
+		fieldOps: defaultFieldOps(),
+		condOps:  defaultCondOps(),
 	}
 }
 
-// WithOperators sets the operators to be used.
-func (b *AbilityBuilder) WithOperators(ops Operators) *AbilityBuilder {
-	b.ops = ops
+// WithFieldOps sets the field operators to be used.
+func (b *AbilityBuilder) WithFieldOps(ops FieldOps) *AbilityBuilder {
+	b.fieldOps = ops
+	return b
+}
+
+// WithCondOps sets the condition operators to be used.
+func (b *AbilityBuilder) WithCondOps(ops CondOps) *AbilityBuilder {
+	b.condOps = ops
 	return b
 }
 
@@ -62,7 +70,7 @@ func AddRules[S Subject](b *AbilityBuilder, rules ...Rule[S]) *AbilityBuilder {
 // It validates all rules, returning an error if any conditions reference
 // unresolved template variables or unknown operators.
 func (b *AbilityBuilder) Build() (*Ability, error) {
-	compiler := newCompiler(b.ops, b.vars)
+	compiler := newCompiler(b.fieldOps, b.condOps, b.vars)
 
 	if err := compiler.validate(b.rules); err != nil {
 		return nil, err

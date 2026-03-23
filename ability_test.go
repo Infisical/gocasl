@@ -7,15 +7,18 @@ import (
 func TestAbilityBuilder(t *testing.T) {
 	// Test NewAbility
 	b := NewAbility()
-	if b.ops == nil {
-		t.Errorf("NewAbility should set default operators")
+	if b.fieldOps == nil {
+		t.Errorf("NewAbility should set default field operators")
+	}
+	if b.condOps == nil {
+		t.Errorf("NewAbility should set default cond operators")
 	}
 
-	// Test WithOperators
-	ops := Operators{}
-	b.WithOperators(ops)
-	if len(b.ops) != 0 {
-		t.Errorf("WithOperators failed")
+	// Test WithFieldOps
+	ops := FieldOps{}
+	b.WithFieldOps(ops)
+	if len(b.fieldOps) != 0 {
+		t.Errorf("WithFieldOps failed")
 	}
 
 	// Test WithVars
@@ -46,6 +49,9 @@ func TestAbilityBuilder(t *testing.T) {
 	if len(b.rules) != 3 {
 		t.Errorf("AddRules failed")
 	}
+
+	// Need to restore field ops for Build to work
+	b.WithFieldOps(defaultFieldOps())
 
 	// Test Build
 	a, err := b.Build()

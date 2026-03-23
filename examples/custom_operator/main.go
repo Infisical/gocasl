@@ -30,10 +30,10 @@ func (p Product) GetField(field string) any {
 	}
 }
 
-// 2. Define Custom Operator Function
+// 2. Define Custom Operator as a pure comparison function.
 // This function checks if the fieldValue (number) is between [min, max] inclusive.
 func opBetween(fieldValue, operand any) bool {
-	// 1. Cast field value to float64 (assuming standard number type for this example)
+	// 1. Cast field value to float64
 	val, ok := toFloat(fieldValue)
 	if !ok {
 		return false
@@ -81,11 +81,11 @@ func main() {
 	read := gocasl.DefineAction[Product]("read")
 	buy := gocasl.DefineAction[Product]("buy")
 
-	// 4. Register Operator in AbilityBuilder
-	// Start with DefaultOperators and add ours
-	myOperators := gocasl.DefaultOperators().With("$between", opBetween)
+	// 4. Register Operator using Compare() wrapper and WithFieldOps
+	// Start with DefaultFieldOps and add ours
+	myFieldOps := gocasl.DefaultFieldOps().With("$between", gocasl.Compare(opBetween))
 
-	builder := gocasl.NewAbility().WithOperators(myOperators)
+	builder := gocasl.NewAbility().WithFieldOps(myFieldOps)
 
 	// Add Rules using the custom operator
 	// Allow reading any product
