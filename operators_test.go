@@ -43,8 +43,10 @@ func TestCondOpsMethods(t *testing.T) {
 		t.Errorf("Clone failed size check")
 	}
 
-	ops = ops.With("$custom", func(cc *CompileCtx, value any) Condition {
-		return func(s Subject) bool { return true }
+	ops = ops.With("$custom", CondOp{
+		Compile: func(cc *CompileCtx, value any) Condition {
+			return func(s Subject) bool { return true }
+		},
 	})
 	if _, ok := ops["$custom"]; !ok {
 		t.Errorf("With failed to add cond operator")
@@ -62,7 +64,7 @@ func evalFieldOp(op FieldOp, fieldVal, constraint any) bool {
 		Compile: func(c Cond) Condition { return func(s Subject) bool { return true } },
 		Resolve: func(v any) any { return v },
 	}
-	cond := op(cc, "testField", constraint)
+	cond := op.Compile(cc, "testField", constraint)
 	sub := MapSubject{"testField": fieldVal}
 	return cond(sub)
 }

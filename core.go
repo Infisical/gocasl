@@ -40,15 +40,38 @@ type CompileCtx struct {
 	Resolve func(any) any
 }
 
-// FieldOp compiles a field-level operator into a Condition.
-// It is called at build time when the compiler encounters {"field": {"$op": constraint}}.
-// The returned Condition is evaluated at runtime — no recompilation needed.
-type FieldOp func(cc *CompileCtx, field string, constraint any) Condition
+// ValidateCtx is the context passed to operator Validate functions during build-time validation.
+// It provides access to recursive validation so operators can validate nested conditions.
+type ValidateCtx struct {
+	// ValidateCond recursively validates a nested Cond.
+	ValidateCond func(cond Cond, path string)
+	// ValidateValue validates a scalar value (checks for VarRefs and operator maps).
+	ValidateValue func(val any, path string)
+	// Path is the current validation path for error messages.
+	Path string
+	// Errs collects validation errors.
+	Errs *[]string
+}
 
-// CondOp compiles a condition-level operator into a Condition.
-// It is called at build time when the compiler encounters {"$op": value} at the top level of a Cond.
+// FieldOp defines a field-level operator.
+// Compile is called at build time when the compiler encounters {"field": {"$op": constraint}}.
+// The returned Condition is evaluated at runtime — no recompilation needed.
+// Validate is optional — if set, it is called during build-time validation to recursively
+// validate the operator's constraint. If nil, the constraint is validated as a scalar value.
+type FieldOp struct {
+	Compile  func(cc *CompileCtx, field string, constraint any) Condition
+	Validate func(vc *ValidateCtx, constraint any)
+}
+
+// CondOp defines a condition-level operator.
+// Compile is called at build time when the compiler encounters {"$op": value} at the top level of a Cond.
 // Used for logical operators like $and, $or, $not.
-type CondOp func(cc *CompileCtx, value any) Condition
+// Validate is optional — if set, it is called during build-time validation to recursively
+// validate the operator's value. If nil, the value is validated as a scalar.
+type CondOp struct {
+	Compile  func(cc *CompileCtx, value any) Condition
+	Validate func(vc *ValidateCtx, value any)
+}
 
 // FieldOps is a registry of field-level operators.
 type FieldOps map[string]FieldOp
@@ -58,12 +81,16 @@ type CondOps map[string]CondOp
 
 // Compare wraps a simple comparison function into a FieldOp.
 // Use this for operators that just compare a field value against a constraint.
+// The returned FieldOp has no Validate function (nil), meaning the constraint
+// is validated as a scalar value by default.
 func Compare(fn func(fieldValue, constraint any) bool) FieldOp {
-	return func(cc *CompileCtx, field string, constraint any) Condition {
-		resolved := cc.Resolve(constraint)
-		return func(s Subject) bool {
-			return fn(s.GetField(field), resolved)
-		}
+	return FieldOp{
+		Compile: func(cc *CompileCtx, field string, constraint any) Condition {
+			resolved := cc.Resolve(constraint)
+			return func(s Subject) bool {
+				return fn(s.GetField(field), resolved)
+			}
+		},
 	}
 }
 
@@ -137,6 +164,50 @@ func (o CondOps) WithAll(other CondOps) CondOps {
 		newOps[k] = v
 	}
 	return newOps
+}
+
+// ValidateCondConstraint is a Validate helper for operators whose constraint is a single
+// nested Cond (e.g., $elemMatch, $all, $not). It recursively validates the nested condition.
+func ValidateCondConstraint(vc *ValidateCtx, constraint any) {
+	switch v := constraint.(type) {
+	case Cond:
+		vc.ValidateCond(v, vc.Path)
+	case map[string]any:
+		vc.ValidateCond(Cond(v), vc.Path)
+	}
+}
+
+// ValidateCondSliceConstraint is a Validate helper for operators whose constraint is a
+// slice of Cond values (e.g., $and, $or). It recursively validates each nested condition.
+func ValidateCondSliceConstraint(vc *ValidateCtx, constraint any) {
+	list, ok := constraint.([]any)
+	if !ok {
+		return
+	}
+	for i, item := range list {
+		itemPath := vc.Path + "[" + itoa(i) + "]"
+		switch v := item.(type) {
+		case Cond:
+			vc.ValidateCond(v, itemPath)
+		case map[string]any:
+			vc.ValidateCond(Cond(v), itemPath)
+		}
+	}
+}
+
+// itoa is a simple int-to-string helper to avoid importing strconv.
+func itoa(i int) string {
+	if i == 0 {
+		return "0"
+	}
+	var buf [20]byte
+	pos := len(buf)
+	for i > 0 {
+		pos--
+		buf[pos] = byte('0' + i%10)
+		i /= 10
+	}
+	return string(buf[pos:])
 }
 
 // Condition is a compiled function that evaluates a subject against a set of rules.

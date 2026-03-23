@@ -33,16 +33,16 @@ func defaultFieldOps() FieldOps {
 		"$contains":  Compare(opContains),
 		"$exists":    Compare(opExists),
 		"$size":      Compare(opSize),
-		"$elemMatch": opElemMatchFieldOp,
-		"$all":       opAllFieldOp,
+		"$elemMatch": elemMatchFieldOp(),
+		"$all":       allFieldOp(),
 	}
 }
 
 func defaultCondOps() CondOps {
 	return CondOps{
-		"$and": opAndCondOp,
-		"$or":  opOrCondOp,
-		"$not": opNotCondOp,
+		"$and": andCondOp(),
+		"$or":  orCondOp(),
+		"$not": notCondOp(),
 	}
 }
 
@@ -143,23 +143,33 @@ func opSize(val any, constraint any) bool {
 
 // --- Compound Field Operators ---
 
-// opElemMatchFieldOp checks if any element in an array field matches all the sub-conditions.
-func opElemMatchFieldOp(cc *CompileCtx, field string, constraint any) Condition {
-	subCond := cc.Compile(toCond(constraint))
-
-	return func(s Subject) bool {
-		fieldVal := s.GetField(field)
-		return arrayAny(fieldVal, subCond)
+// elemMatchFieldOp returns a FieldOp that checks if any element in an array field matches
+// all the sub-conditions.
+func elemMatchFieldOp() FieldOp {
+	return FieldOp{
+		Compile: func(cc *CompileCtx, field string, constraint any) Condition {
+			subCond := cc.Compile(toCond(constraint))
+			return func(s Subject) bool {
+				fieldVal := s.GetField(field)
+				return arrayAny(fieldVal, subCond)
+			}
+		},
+		Validate: ValidateCondConstraint,
 	}
 }
 
-// opAllFieldOp checks if every element in an array field matches all the sub-conditions.
-func opAllFieldOp(cc *CompileCtx, field string, constraint any) Condition {
-	subCond := cc.Compile(toCond(constraint))
-
-	return func(s Subject) bool {
-		fieldVal := s.GetField(field)
-		return arrayAll(fieldVal, subCond)
+// allFieldOp returns a FieldOp that checks if every element in an array field matches
+// all the sub-conditions.
+func allFieldOp() FieldOp {
+	return FieldOp{
+		Compile: func(cc *CompileCtx, field string, constraint any) Condition {
+			subCond := cc.Compile(toCond(constraint))
+			return func(s Subject) bool {
+				fieldVal := s.GetField(field)
+				return arrayAll(fieldVal, subCond)
+			}
+		},
+		Validate: ValidateCondConstraint,
 	}
 }
 
@@ -221,55 +231,70 @@ func toCond(val any) Cond {
 
 // --- Condition-Level Operators ---
 
-func opAndCondOp(cc *CompileCtx, value any) Condition {
-	list, ok := value.([]any)
-	if !ok {
-		return func(s Subject) bool { return false }
-	}
-
-	var conds []Condition
-	for _, item := range list {
-		conds = append(conds, cc.Compile(toCond(item)))
-	}
-
-	return func(s Subject) bool {
-		for _, c := range conds {
-			if !c(s) {
-				return false
+func andCondOp() CondOp {
+	return CondOp{
+		Compile: func(cc *CompileCtx, value any) Condition {
+			list, ok := value.([]any)
+			if !ok {
+				return func(s Subject) bool { return false }
 			}
-		}
-		return true
-	}
-}
 
-func opOrCondOp(cc *CompileCtx, value any) Condition {
-	list, ok := value.([]any)
-	if !ok {
-		return func(s Subject) bool { return false }
-	}
+			var conds []Condition
+			for _, item := range list {
+				conds = append(conds, cc.Compile(toCond(item)))
+			}
 
-	var conds []Condition
-	for _, item := range list {
-		conds = append(conds, cc.Compile(toCond(item)))
-	}
-
-	return func(s Subject) bool {
-		if len(conds) == 0 {
-			return false
-		}
-		for _, c := range conds {
-			if c(s) {
+			return func(s Subject) bool {
+				for _, c := range conds {
+					if !c(s) {
+						return false
+					}
+				}
 				return true
 			}
-		}
-		return false
+		},
+		Validate: ValidateCondSliceConstraint,
 	}
 }
 
-func opNotCondOp(cc *CompileCtx, value any) Condition {
-	cond := cc.Compile(toCond(value))
-	return func(s Subject) bool {
-		return !cond(s)
+func orCondOp() CondOp {
+	return CondOp{
+		Compile: func(cc *CompileCtx, value any) Condition {
+			list, ok := value.([]any)
+			if !ok {
+				return func(s Subject) bool { return false }
+			}
+
+			var conds []Condition
+			for _, item := range list {
+				conds = append(conds, cc.Compile(toCond(item)))
+			}
+
+			return func(s Subject) bool {
+				if len(conds) == 0 {
+					return false
+				}
+				for _, c := range conds {
+					if c(s) {
+						return true
+					}
+				}
+				return false
+			}
+		},
+		Validate: ValidateCondSliceConstraint,
+	}
+}
+
+func notCondOp() CondOp {
+	return CondOp{
+		Compile: func(cc *CompileCtx, value any) Condition {
+			cond := cc.Compile(toCond(value))
+			return func(s Subject) bool {
+				return !cond(s)
+			}
+		},
+		Validate: ValidateCondConstraint,
 	}
 }
 

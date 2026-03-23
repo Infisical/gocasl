@@ -63,28 +63,11 @@ func (c *condCompiler) validateCond(cond Cond, path string, errs *[]string) {
 }
 
 func (c *condCompiler) validateCondOpValue(opName string, value any, path string, errs *[]string) {
+	condOp := c.condOps[opName]
 	childPath := fmt.Sprintf("%s.%s", path, opName)
-
-	switch opName {
-	case "$and", "$or":
-		if list, ok := value.([]any); ok {
-			for i, item := range list {
-				itemPath := fmt.Sprintf("%s[%d]", childPath, i)
-				if condMap, ok := item.(Cond); ok {
-					c.validateCond(condMap, itemPath, errs)
-				} else if mapItem, ok := item.(map[string]any); ok {
-					c.validateCond(Cond(mapItem), itemPath, errs)
-				}
-			}
-		}
-	case "$not":
-		if condMap, ok := value.(Cond); ok {
-			c.validateCond(condMap, childPath, errs)
-		} else if mapItem, ok := value.(map[string]any); ok {
-			c.validateCond(Cond(mapItem), childPath, errs)
-		}
-	default:
-		// For custom CondOps, validate the value generically
+	if condOp.Validate != nil {
+		condOp.Validate(c.validateCtx(childPath, errs), value)
+	} else {
 		c.validateValue(value, childPath, errs)
 	}
 }
@@ -131,22 +114,26 @@ func (c *condCompiler) validateOperatorMap(ops map[string]any, path string, errs
 	sort.Strings(keys)
 
 	for _, opName := range keys {
-		if _, ok := c.fieldOps[opName]; !ok {
+		fieldOp, ok := c.fieldOps[opName]
+		if !ok {
 			*errs = append(*errs, fmt.Sprintf("%s: unknown operator %q", path, opName))
+			continue
 		}
-		// For $elemMatch and $all, validate constraint as nested condition
-		if opName == "$elemMatch" || opName == "$all" {
-			constraint := ops[opName]
-			childPath := fmt.Sprintf("%s.%s", path, opName)
-			if condMap, ok := constraint.(Cond); ok {
-				c.validateCond(condMap, childPath, errs)
-			} else if mapItem, ok := constraint.(map[string]any); ok {
-				c.validateCond(Cond(mapItem), childPath, errs)
-			}
+		childPath := fmt.Sprintf("%s.%s", path, opName)
+		if fieldOp.Validate != nil {
+			fieldOp.Validate(c.validateCtx(childPath, errs), ops[opName])
 		} else {
-			// Validate the operator's constraint value for VarRefs
-			c.validateValue(ops[opName], fmt.Sprintf("%s.%s", path, opName), errs)
+			c.validateValue(ops[opName], childPath, errs)
 		}
+	}
+}
+
+func (c *condCompiler) validateCtx(path string, errs *[]string) *ValidateCtx {
+	return &ValidateCtx{
+		ValidateCond:  func(cond Cond, p string) { c.validateCond(cond, p, errs) },
+		ValidateValue: func(val any, p string) { c.validateValue(val, p, errs) },
+		Path:          path,
+		Errs:          errs,
 	}
 }
 
@@ -171,7 +158,7 @@ func (c *condCompiler) compile(cond Cond) Condition {
 	for key, value := range cond {
 		if condOp, ok := c.condOps[key]; ok {
 			// Condition-level operator ($and, $or, $not, or custom)
-			checks = append(checks, condOp(c.ctx(), value))
+			checks = append(checks, condOp.Compile(c.ctx(), value))
 		} else {
 			// Field condition
 			checks = append(checks, c.compileField(key, value))
@@ -221,7 +208,7 @@ func (c *condCompiler) compileField(field string, value any) Condition {
 
 	// Implicit $eq
 	eqOp := c.fieldOps["$eq"]
-	return eqOp(c.ctx(), field, resolvedValue)
+	return eqOp.Compile(c.ctx(), field, resolvedValue)
 }
 
 func (c *condCompiler) compileOperators(field string, ops map[string]any) Condition {
@@ -242,7 +229,7 @@ func (c *condCompiler) compileOperators(field string, ops map[string]any) Condit
 			return func(s Subject) bool { return false }
 		}
 
-		checks = append(checks, fieldOp(c.ctx(), field, opVal))
+		checks = append(checks, fieldOp.Compile(c.ctx(), field, opVal))
 	}
 
 	return func(subject Subject) bool {
